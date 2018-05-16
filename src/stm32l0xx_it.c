@@ -1,10 +1,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32l0xx.h"
 
-#include "light.h"
 #include "main.h"
 #include "process.h"
 #include "rfm69.h"
+#include "button.h"
+#include "ir.h"
 #include "stm32l0xx_it.h"
 
 uint8_t rssiVol;    //
@@ -22,7 +23,7 @@ uint8_t rssiVol;    //
 
 extern volatile uint8_t csmaCount;
 
-void extiPdTest( void ){
+//void extiPdTest( void ){
 //  if(EXTI->PR != 0){
 //    uint32_t tmp = EXTI->PR;
 //    EXTI->PR = tmp;
@@ -32,7 +33,7 @@ void extiPdTest( void ){
 //    RTC->ISR &= ~RTC_ISR_ALRAF;
 //    NVIC->ICPR[0] = NVIC->ISPR[0];
 //  }
-}
+//}
 
 /******************************************************************************/
 /*            Cortex-M0+ Processor Interruption and Exception Handlers         */ 
@@ -60,11 +61,6 @@ void SysTick_Handler(void) {
 * RTC global interrupt through EXTI lines 17, 19 and 20.
 */
 void RTC_IRQHandler(void){
-//#if ! STOP_EN
-//  rtcLog[rtcLogCount].ssr = RTC->SSR;
-//  rtcLog[rtcLogCount++].state = state;
-//  rtcLogCount &= 0x3F;
-//#endif
 // Восстанавливаем настройки портов
   restoreContext();
   // Отмечаем запуск MCU
@@ -78,31 +74,34 @@ void RTC_IRQHandler(void){
   	wutIrqHandler();
   }
   if( RTC->ISR & RTC_ISR_ALRAF ){
-    while( (RTC->ISR & RTC_ISR_RSF) == 0 )
-    {}
-    uint32_t tmp2 = RTC->DR;
-    (void)tmp2;
-    uint32_t tmp = RTC->TR;
+
+    uint32_t dr = RTC->DR;
+    (void)dr;
+    uint32_t tr0 = RTC->TR;
+    uint32_t tr = RTC->TR;
+    if (tr0 != tr ){
+      tr = RTC->TR;
+    }
 
     //Clear ALRAF
     RTC->ISR &= ~RTC_ISR_ALRAF;
-    if( (tmp & 0x1) != 0){
-      if((rtc.min % SEND_TOUT) != 0) {
-        sendToutFlag = SET;
-      }
-      // Alarm A interrupt: Каждая вторая секунда
-      uxTime = getRtcTime();
-      if(state == STAT_READY){
-        if( sendToutFlag == SET ){
-          // Периодическое измерение - измеряем все
-          mesureStart();
-        }
-        else {
-          // Измеряем только освещенность
-          lightStart();
-        }
-      }
-    }
+//    if( (tr & 0x1) != 0){
+//      if((rtc.min % SEND_TOUT) != 0) {
+//        sendToutFlag = SET;
+//      }
+//      // Alarm A interrupt: Каждая вторая секунда
+//      uxTime = getRtcTime();
+//      if(state == STAT_READY){
+//        if( sendToutFlag == SET ){
+//          // Периодическое измерение - измеряем все
+//          mesureStart();
+//        }
+//        else {
+//          // Измеряем только освещенность
+//          lightStart();
+//        }
+//      }
+//    }
     // Стираем флаг прерывания EXTI
     EXTI->PR &= EXTI_PR_PR17;
   }
@@ -119,7 +118,7 @@ void RTC_IRQHandler(void){
 	// Сохраняем настройки портов
 	saveContext();
 	// Проверяем на наличие прерывания EXTI
-	extiPdTest();
+//	extiPdTest();
 }
 
 /**
@@ -160,18 +159,12 @@ void EXTI0_1_IRQHandler(void)
 	// Сохраняем настройки портов
 	saveContext();
 	// Проверяем на наличие прерывания EXTI
-	extiPdTest();
+//	extiPdTest();
 }
 
 // Прерывание по PA3 - DIO3 RSSI
 // Канал кем-то занят
 void EXTI2_3_IRQHandler( void ){
-  tUxTime timeNow;
-//#if ! STOP_EN
-//  rtcLog[rtcLogCount].ssr = RTC->SSR;
-//  rtcLog[rtcLogCount++].state = state;
-//  rtcLogCount &= 0x3F;
-//#endif
 
   // Восстанавливаем настройки портов
   restoreContext();
@@ -203,16 +196,70 @@ void EXTI2_3_IRQHandler( void ){
 	// Сохраняем настройки портов
 	saveContext();
 	// Проверяем на наличие прерывания EXTI
-  extiPdTest();
+//  extiPdTest();
   return;
 }
 
-#if 0
-/**
-* @brief This function handles I2C1 event global interrupt / I2C1 wake-up interrupt through EXTI line 23.
-*/
-void I2C1_IRQHandler(void) {
-  // Обработка прерывания I2C: работа с термодатчиком
-  thermoIrqHandler();
+
+// Прерывание по PA15 - Кнопка
+// Прерывание по PB6 - IR-reseiver
+void EXTI4_15_IRQHandler( void ){
+  // Восстанавливаем настройки портов
+  restoreContext();
+  wutStop();
+
+  if( EXTI->PR & BTN_PIN){
+    // Выключаем прерывание от КНОПКИ
+    EXTI->IMR &= ~(BTN_PIN);
+    EXTI->PR &= BTN_PIN;
+
+    // Сохраняем состояние кнопки на момент прерывания для антидребеза
+    btn.stat = (BTN_PORT->IDR & BTN_PIN) >> BTN_PIN_NUM;
+    state = STAT_BTN_DBNC;
+
+    // Начало отсчета дребезга - 30ms
+    wutSet(30000);
+  }
+  if ( EXTI->PR & IR_RX_PIN ){
+    EXTI->PR &= IR_RX_PIN;
+    irRxProcess();
+  }
+
+  // Сохраняем настройки портов
+  saveContext();
+  // Проверяем на наличие прерывания EXTI
+//  extiPdTest();
+  return;
 }
-#endif
+
+// Обработчик прерывания от кнопки
+void TIM6_IRQHandler( void ){
+    TIM6->SR &= ~TIM_SR_UIF;
+    // Переключаем вывод 1->0, 0->1
+    BUZ_PORT->ODR ^= BUZ_PIN;
+}
+
+// Обработчик прерывания таймера несущей (38кГц) ИК-передатчика
+void TIM21_IRQHandler( void ){
+  TIM21->SR &= ~TIM_SR_UIF;
+  // Переключаем вывод 1->0, 0->1
+  IR_TX_PORT->ODR ^= IR_TX_PIN;
+}
+
+// Обработчик прерывания таймера модуляции (длительность импульсов и пауз) ИК-передатчика
+void TIM22_IRQHandler( void ){
+  TIM22->SR &= ~TIM_SR_UIF;
+  if( TIM22->CR1 & TIM_CR1_DIR ){
+    // Обратный отсчет - передача
+  }
+  else {
+    // Примой счет - прием (обучение)
+    // Длительность паузы более 100мс -> пакет принят.
+//    buzzerShortPulse();
+    // Обнуляем счетчик импульсов и пауз
+    irRxIndex = 0;
+    learnProcess();
+    EXTI->IMR &= ~IR_RX_PIN;
+  }
+  TIM22->CR1 &= ~TIM_CR1_CEN;
+}

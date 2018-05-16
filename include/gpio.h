@@ -33,5 +33,41 @@
                                          GPIO_BSRR_BS_12 | GPIO_BSRR_BS_13 | GPIO_BSRR_BS_14 | \
                                          GPIO_BSRR_BS_15) /*!< Select all pins */
 
+// Выводы и порты
+// ========================= КНОПКА ====================================
+// Номер пина Кнопки
+#define BTN_PIN        GPIO_Pin_15
+#define BTN_PIN_NUM    15
+#define BTN_PORT       GPIOA
+#define BTN_PORT_NUM   0
+
+#if (BTN_PIN_NUM > 3)
+#define BTN_EXTI_IRQn  EXTI4_15_IRQn
+#endif
+
+// ========================= ПЕЩАЛКА ==============================
+// Номер пина Пищалки
+#define BUZ_PIN        GPIO_Pin_7
+#define BUZ_PIN_NUM    7
+#define BUZ_PORT       GPIOB
+#define BUZ_PORT_NUM   1
+
+// ========================= ИК-ПЕРЕДАТЧИК ==============================
+// Номер пина вывода ИК-передатчика
+#define IR_TX_PIN        GPIO_Pin_1
+#define IR_TX_PIN_NUM    1
+#define IR_TX_PORT       GPIOB
+#define IR_TX_PORT_NUM   1
+
+// ========================= ИК-ПРИЕМНИК ====================================
+// Номер пина ИК-приемника
+#define IR_RX_PIN        GPIO_Pin_6
+#define IR_RX_PIN_NUM    6
+#define IR_RX_PORT       GPIOB
+#define IR_RX_PORT_NUM   1
+
+#if (IR_RX_PIN_NUM > 3)
+#define IR_RX_EXTI_IRQn  EXTI4_15_IRQn
+#endif
 
 #endif /* INCLUDE_STM32L0XX_LL_GPIO_H_ */

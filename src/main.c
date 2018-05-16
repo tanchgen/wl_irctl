@@ -6,10 +6,11 @@
 
 #include "my_time.h"
 #include "bat.h"
-#include "light.h"
 #include "spi.h"
 #include "rfm69.h"
 #include "process.h"
+#include "button.h"
+#include "ir.h"
 #include "main.h"
 
 //volatile uint32_t mTick;
@@ -39,7 +40,7 @@ tDbgTime dbgTime;
 /* Private function prototypes -----------------------------------------------*/
 static inline void mainInit( void );
 static inline void sysClockInit(void);
-static inline void pwrInit( void );
+static inline void startPwrInit( void );
 static inline void eepromUnlock( void );
 
 // ----- main() ---------------------------------------------------------------
@@ -51,15 +52,42 @@ int main(int argc, char* argv[])
 
   mainInit();
   sysClockInit();
+
+/* Сначала конфигурируем необходимый минимум для того, чтобы усыпить контроллер,
+ * а затем по нажатию КНОПКИ разбудить, настроить ВСЕ и включить в рабочее состояние
+ */
+  startPwrInit();
+  timeInit();
+  buttonInit();
+  buzzerInit();
+
+  irRxInit();
+
+  while(1)
+  {}
+
+  // Засыпаем до нажатия на кнопку
+  while( btn.tOnSec == 0 ) {
+#if STOP_EN
+    __WFI();
+#endif
+  }
+
   // Разлочили EEPROM
   eepromUnlock();
 
-  batInit();
-  lightInit();
   rfmInit();
+  batInit();
+//  irRxInit();
+//  irTxInit();
 
-  pwrInit();
-  timeInit();
+  // В рабочем режиме Засыпаем по выходу из перывания
+  #if STOP_EN
+    SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
+  #endif
+
+  // В рабочем режиме включаем будильник
+  rtcWorkInit();
   // Запустили измерения
   mesureStart();
 //  GPIOB->MODER = (GPIOB->MODER & ~GPIO_MODER_MODE3) | GPIO_MODER_MODE3_0;
@@ -101,7 +129,7 @@ static inline void sysClockInit(void){
 //  NVIC_SetPriority(SysTick_IRQn, 0);
 }
 
-static inline void pwrInit( void ){
+static inline void startPwrInit( void ){
   // Power range 3
 	while( (PWR->CSR & PWR_CSR_VOSF) != 0 )
 	{}
@@ -119,11 +147,13 @@ static inline void pwrInit( void ){
   // не ждем, пока восстановится VREFIN, проверяем только при запуске АЦП
   PWR->CR |= PWR_CR_ULP | PWR_CR_FWU | PWR_CR_LPSDSR;
   // Interrupt-only Wakeup, DeepSleep enable, SleepOnExit enable
-#if STOP_EN
-  SCB->SCR = (SCB->SCR & ~SCB_SCR_SEVONPEND_Msk) | SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk;
-#else
-  SCB->SCR = (SCB->SCR & ~SCB_SCR_SEVONPEND_Msk) | SCB_SCR_SLEEPDEEP_Msk;// | SCB_SCR_SLEEPONEXIT_Msk;
-#endif // STOP_EN
+  // Начальная инициализация до включения контроллера
+  SCB->SCR = (SCB->SCR & ~SCB_SCR_SEVONPEND_Msk) | SCB_SCR_SLEEPDEEP_Msk;
+//#if STOP_EN
+//  SCB->SCR = (SCB->SCR & ~SCB_SCR_SEVONPEND_Msk) | SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk;
+//#else
+//
+//#endif // STOP_EN
 }
 
 static inline void eepromUnlock( void ){

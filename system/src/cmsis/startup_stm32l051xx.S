@@ -1,8 +1,10 @@
 /**
   ******************************************************************************
-  * @file      startup_stm32l052xx.s
+  * @file      startup_stm32l051xx.s
   * @author    MCD Application Team
-  * @brief     STM32L052xx Devices vector table for Atollic TrueSTUDIO toolchain.
+  * @version   V1.7.1
+  * @date      25-November-2016
+  * @brief     STM32L051xx Devices vector table for Atollic TrueSTUDIO toolchain.
   *            This module performs:
   *                - Set the initial SP
   *                - Set the initial PC == Reset_Handler,
@@ -146,7 +148,7 @@ g_pfnVectors:
   .word  0
   .word  0
   .word  SVC_Handler
-  .word  0
+  .word  0         
   .word  0
   .word  PendSV_Handler
   .word  SysTick_Handler
@@ -154,11 +156,11 @@ g_pfnVectors:
   .word  PVD_IRQHandler                    /* PVD through EXTI Line detection */
   .word  RTC_IRQHandler                    /* RTC through the EXTI line     */
   .word  FLASH_IRQHandler                  /* FLASH                        */
-  .word  RCC_CRS_IRQHandler                /* RCC and CRS                  */
+  .word  RCC_IRQHandler                    /* RCC                          */
   .word  EXTI0_1_IRQHandler                /* EXTI Line 0 and 1            */
   .word  EXTI2_3_IRQHandler                /* EXTI Line 2 and 3            */
   .word  EXTI4_15_IRQHandler               /* EXTI Line 4 to 15            */
-  .word  TSC_IRQHandler                     /* TSC                           */
+  .word  0                                 /* Reserved                     */
   .word  DMA1_Channel1_IRQHandler          /* DMA1 Channel 1               */
   .word  DMA1_Channel2_3_IRQHandler        /* DMA1 Channel 2 and Channel 3 */
   .word  DMA1_Channel4_5_6_7_IRQHandler    /* DMA1 Channel 4, Channel 5, Channel 6 and Channel 7*/
@@ -167,8 +169,8 @@ g_pfnVectors:
   .word  0                                 /* Reserved                     */
   .word  TIM2_IRQHandler                   /* TIM2                         */
   .word  0                                 /* Reserved                     */
-  .word  TIM6_DAC_IRQHandler               /* TIM6 and DAC                 */
-  .word  0               				          /* Reserved                     */
+  .word  TIM6_IRQHandler                   /* TIM6                         */
+  .word  0               				           /* Reserved                     */
   .word  0              					          /* Reserved                     */
   .word  TIM21_IRQHandler                  /* TIM21                        */
   .word  0                                 /* Reserved                     */
@@ -179,9 +181,9 @@ g_pfnVectors:
   .word  SPI2_IRQHandler                   /* SPI2                         */
   .word  USART1_IRQHandler                 /* USART1                       */
   .word  USART2_IRQHandler                 /* USART2                       */
-  .word  RNG_LPUART1_IRQHandler            /* RNG and LPUART1              */
+  .word  LPUART1_IRQHandler                /* LPUART1                      */
   .word  0                                 /* Reserved                     */
-  .word  USB_IRQHandler                    /* USB                          */
+  .word  0                                 /* Reserved                     */
 
 /*******************************************************************************
 *
@@ -218,8 +220,8 @@ g_pfnVectors:
    .weak      FLASH_IRQHandler
    .thumb_set FLASH_IRQHandler,Default_Handler
 
-   .weak      RCC_CRS_IRQHandler
-   .thumb_set RCC_CRS_IRQHandler,Default_Handler
+   .weak      RCC_IRQHandler
+   .thumb_set RCC_IRQHandler,Default_Handler
 
    .weak      EXTI0_1_IRQHandler
    .thumb_set EXTI0_1_IRQHandler,Default_Handler
@@ -229,9 +231,6 @@ g_pfnVectors:
 
    .weak      EXTI4_15_IRQHandler
    .thumb_set EXTI4_15_IRQHandler,Default_Handler
-
-   .weak      TSC_IRQHandler
-   .thumb_set TSC_IRQHandler,Default_Handler
 
    .weak      DMA1_Channel1_IRQHandler
    .thumb_set DMA1_Channel1_IRQHandler,Default_Handler
@@ -251,8 +250,8 @@ g_pfnVectors:
    .weak      TIM2_IRQHandler
    .thumb_set TIM2_IRQHandler,Default_Handler
 
-   .weak      TIM6_DAC_IRQHandler
-   .thumb_set TIM6_DAC_IRQHandler,Default_Handler
+   .weak      TIM6_IRQHandler
+   .thumb_set TIM6_IRQHandler,Default_Handler
 
    .weak      TIM21_IRQHandler
    .thumb_set TIM21_IRQHandler,Default_Handler
@@ -278,11 +277,8 @@ g_pfnVectors:
    .weak      USART2_IRQHandler
    .thumb_set USART2_IRQHandler,Default_Handler
 
-   .weak      RNG_LPUART1_IRQHandler
-   .thumb_set RNG_LPUART1_IRQHandler,Default_Handler
-
-   .weak      USB_IRQHandler
-   .thumb_set USB_IRQHandler,Default_Handler
+   .weak      LPUART1_IRQHandler
+   .thumb_set LPUART1_IRQHandler,Default_Handler
 
 
 

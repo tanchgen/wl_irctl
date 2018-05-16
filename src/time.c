@@ -27,15 +27,15 @@ struct {
 } wutTest[20];
 
 static void RTC_SetTime( volatile tRtc * prtc );
-static void RTC_GetTime( volatile tRtc * prtc );
 static void RTC_SetDate( volatile tRtc * prtc );
-static void RTC_GetDate( volatile tRtc * prtc );
+// static void RTC_GetTime( volatile tRtc * prtc );
+// static void RTC_GetDate( volatile tRtc * prtc );
 static void RTC_SetAlrm( tRtc * prtc, uint8_t alrm );
 static void RTC_GetAlrm( tRtc * prtc, uint8_t alrm );
 static void RTC_CorrAlrm( tRtc * prtc, uint8_t alrm );
 
 // *********** Инициализация структуры ВРЕМЯ (сейчас - системное ) ************
-void rtcInit(void){
+void rtcStartInit(void){
 
   PWR->CR |= PWR_CR_DBP;
   RCC->CSR |= RCC_CSR_RTCRST;
@@ -62,6 +62,35 @@ void rtcInit(void){
   RTC->PRER = 0x007F00FF;
   RTC->ISR &= ~RTC_ISR_INIT;
 
+  // --- Configure WakeUp Timer -----
+  RTC->CR &= ~RTC_CR_WUTE;
+  while((RTC->ISR & RTC_ISR_WUTWF) != RTC_ISR_WUTWF)
+  {}
+  // частота = RTCCLOCK (32768кГц) / 4: T = ~122.07мкс
+  RTC->CR = (RTC->CR & ~RTC_CR_WUCKSEL) | RTC_CR_WUCKSEL_1 | RTC_CR_WUTIE;
+  // Disable WUT
+  RTC->CR &= ~RTC_CR_WUTE;
+
+  RTC->CR |= RTC_CR_BYPSHAD;
+
+  // Disable write access
+  RTC->WPR = 0xFE;
+  RTC->WPR = 0x64;
+
+  // Configure exti and nvic for RTC WakeUp-Timer IT
+  EXTI->IMR |= EXTI_IMR_IM20;
+  // Rising edge for line 20
+  EXTI->RTSR |= EXTI_RTSR_TR20;
+
+  NVIC_SetPriority(RTC_IRQn, 1);
+  NVIC_EnableIRQ(RTC_IRQn);
+}
+
+void rtcWorkInit(  void ) {
+  // Write access for RTC registers
+  RTC->WPR = 0xCA;
+  RTC->WPR = 0x53;
+
   // --- Configure Alarm A -----
   // Disable alarm A to modify it
   RTC->CR &= ~RTC_CR_ALRAE;
@@ -73,15 +102,6 @@ void rtcInit(void){
   RTC->ALRMAR |= RTC_ALRMAR_MSK4 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK2 | RTC_ALRMAR_MSK1;
   RTC->CR |= RTC_CR_ALRAIE | RTC_CR_ALRAE;
 
-  // --- Configure WakeUp Timer -----
-  RTC->CR &= ~RTC_CR_WUTE;
-  while((RTC->ISR & RTC_ISR_WUTWF) != RTC_ISR_WUTWF)
-  {}
-  // частота = RTCCLOCK (32768кГц) / 4: T = ~122.07мкс
-  RTC->CR = (RTC->CR & ~RTC_CR_WUCKSEL) | RTC_CR_WUCKSEL_1 | RTC_CR_WUTIE;
-  // Disable WUT
-  RTC->CR &= ~RTC_CR_WUTE;
-
   // Disable write access
   RTC->WPR = 0xFE;
   RTC->WPR = 0x64;
@@ -91,18 +111,11 @@ void rtcInit(void){
   // Rising edge for line 17
   EXTI->RTSR |= EXTI_RTSR_TR17;
 
-  // Configure exti and nvic for RTC WakeUp-Timer IT
-  EXTI->IMR |= EXTI_IMR_IM20;
-  // Rising edge for line 20
-  EXTI->RTSR |= EXTI_RTSR_TR20;
-
-  NVIC_SetPriority(RTC_IRQn, 1);
-  NVIC_EnableIRQ(RTC_IRQn);
 }
 
 void timeInit( void ) {
   //Инициализируем RTC
-  rtcInit();
+  rtcStartInit();
 
   /*##-1- Configure the Date #################################################*/
   /* Set Date: Wednesday June 1st 2016 */
@@ -223,29 +236,70 @@ void setRtcTime( tUxTime xtime ){
   RTC_SetDate( &rtc );
 }
 
+/*
+ * Чтение RTC, когда бит BYPSHAD сброшен
+ */
 tUxTime getRtcTime( void ){
-  uint32_t tmp;
-  // Пежде чем читать необходимо убедится, что флаг RTC_ISR_RSF установлен !
-  while((RTC->ISR & RTC_ISR_RSF) == 0)
-  {}
-  // Читаем дату
-  tmp = RTC->DR;
-  rtc.year = BCD2BIN( tmp >> RTC_POSITION_DR_YU );
-  rtc.month = BCD2BIN( (tmp >> RTC_POSITION_DR_MU) & 0x1f );
-  rtc.date = BCD2BIN( tmp );
-  rtc.wday = ( tmp >> RTC_POSITION_DR_WDU ) & 0x7;
-  // Читаем время
-  tmp = RTC->TR;
-  rtc.hour = BCD2BIN( tmp >> RTC_POSITION_TR_HU );
-  rtc.min = BCD2BIN( tmp >> RTC_POSITION_TR_MU );
-  rtc.sec = BCD2BIN( tmp );
-  rtc.ss = RTC->SSR;
+  uint32_t dr;
+  uint32_t tr;
+  uint32_t ssr0, ssr;
 
-  // Стираем бит синхронизации теневых регистров RCC_DR, RCC_TR, RCC_SSR
-  RTC->ISR &= ~RTC_ISR_RSF;
+  // Читаем субсекунды
+  ssr0 = RTC->SSR;
+  // Читаем дату
+  dr = RTC->DR;
+  // Читаем время
+  tr = RTC->TR;
+  // Еще раз читаем субсекунды
+  ssr = RTC->SSR;
+
+  if (ssr0 != ssr) {
+    // Чтение пришлось на обновление регистров - перечитываем
+    // Читаем дату
+    dr = RTC->DR;
+    // Читаем время
+    tr = RTC->TR;
+    // Читаем субсекунды
+    ssr = RTC->SSR;
+  }
+  // Читаем субсекунды
+  rtc.ss = 256 - ssr;
+
+  rtc.year = BCD2BIN( dr >> RTC_POSITION_DR_YU );
+  rtc.month = BCD2BIN( (dr >> RTC_POSITION_DR_MU) & 0x1f );
+  rtc.date = BCD2BIN( dr );
+  rtc.wday = ( dr >> RTC_POSITION_DR_WDU ) & 0x7;
+  rtc.hour = BCD2BIN( tr >> RTC_POSITION_TR_HU );
+  rtc.min = BCD2BIN( tr >> RTC_POSITION_TR_MU );
+  rtc.sec = BCD2BIN( tr );
 
   return xTm2Utime( &rtc );
 }
+/*
+ * Чтение RTC, когда бит BYPSHAD сброшен
+ */
+//tUxTime getRtcTime( void ){
+//  uint32_t tmp;
+//  // Стираем бит синхронизации теневых регистров RCC_DR, RCC_TR, RCC_SSR
+//  RTC->ISR &= ~RTC_ISR_RSF;
+//  // Пежде чем читать необходимо убедится, что флаг RTC_ISR_RSF установлен !
+//  while((RTC->ISR & RTC_ISR_RSF) == 0)
+//  {}
+//  // Читаем дату
+//  tmp = RTC->DR;
+//  rtc.year = BCD2BIN( tmp >> RTC_POSITION_DR_YU );
+//  rtc.month = BCD2BIN( (tmp >> RTC_POSITION_DR_MU) & 0x1f );
+//  rtc.date = BCD2BIN( tmp );
+//  rtc.wday = ( tmp >> RTC_POSITION_DR_WDU ) & 0x7;
+//  // Читаем время
+//  tmp = RTC->TR;
+//  rtc.hour = BCD2BIN( tmp >> RTC_POSITION_TR_HU );
+//  rtc.min = BCD2BIN( tmp >> RTC_POSITION_TR_MU );
+//  rtc.sec = BCD2BIN( tmp );
+//  rtc.ss = 256 - RTC->SSR;
+//
+//  return xTm2Utime( &rtc );
+//}
 
 uint8_t getRtcMin( void ){
   if((RTC->ISR & RTC_ISR_RSF) == 0){
@@ -392,6 +446,7 @@ static void RTC_SetDate( volatile tRtc * prtc ){
   RTC->WPR = 0x64;
 }
 
+#if 0
 static void RTC_GetTime( volatile tRtc * prtc ){
   // Пежде чем читать необходимо убедится, что флаг RTC_ISR_RSF установлен !
   while((RTC->ISR & RTC_ISR_RSF) == 0)
@@ -413,13 +468,13 @@ static void RTC_GetDate( volatile tRtc * prtc ){
   prtc->date = BCD2BIN( tmp );
   prtc->wday = ( tmp >> RTC_POSITION_DR_WDU ) & 0x7;
 }
+#endif
 
 static void RTC_SetAlrm( tRtc * prtc, uint8_t alrm ){
   register uint32_t temp = 0U;
   // Если alrm = 0 (ALRM_A) : ALRMAR, есди alrm = 1 (ALRM_B) : ALRMBR
   register uint32_t * palrm = (uint32_t *)&(RTC->ALRMAR) + alrm;
   register uint32_t tmpMask = RTC_CR_ALRAE << alrm;
-
 
   RTC->WPR = 0xCA;
   RTC->WPR = 0x53;

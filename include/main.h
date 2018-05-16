@@ -3,7 +3,7 @@
 // Includes ------------------------------------------------------------------
 #include "stm32l0xx.h"
 
-#define STOP_EN		1
+#define STOP_EN		0
 
 #ifndef NVIC_PRIORITYGROUP_0
 
@@ -24,9 +24,18 @@
 #define __packed __attribute__((packed))
 #endif
 
+#ifndef NULL
+#define NULL    (void *)0
+#endif
+
 enum {
   FALSE,
   TRUE
+};
+
+enum {
+  OFF,
+  ON
 };
 
 #if 0
@@ -38,9 +47,9 @@ enum{
 
 typedef enum {
   STAT_READY,
-  STAT_L_MESUR,
-  STAT_L_READ,
-  STAT_L_CPLT,
+  STAT_BTN_DBNC,
+  STAT_BTN_ON,
+  STAT_BTN_OFF,
   STAT_RF_CSMA_START,
   STAT_RF_CSMA_PAUSE,
   STAT_TX_START

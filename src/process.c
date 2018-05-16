@@ -10,9 +10,9 @@
 
 #include "main.h"
 #include "my_time.h"
-#include "light.h"
 #include "bat.h"
 #include "rfm69.h"
+#include "button.h"
 #include "process.h"
 
 volatile uint8_t csmaCount = 0;
@@ -21,12 +21,11 @@ static uint8_t msgNum;      // Порядковый номер отправля�
 extern uint8_t wutCount;
 
 static void sensDataSend( void );
+static uint32_t rngGet( void );
 
 void mesureStart( void ){
   // Запускаем измерение напряжения батареи
   batStart();
-  // Запускаем измерение температуры
-  lightStart();
   batEnd();
 }
 
@@ -34,12 +33,33 @@ void wutIrqHandler( void ){
 
   // По какому поводу был включен WUT? - состояние машины
   switch( state ){
-    case STAT_L_MESUR:
-      // Пора читать измеренную температуру из датчика
-      lightEnd();
-      // Не пара ли передавать данные серверу?
-      dataSendTry();
+    case STAT_BTN_DBNC: {
+        uint32_t ut;
+        // Проверка кнопки после антидребезга
+        if( (((BTN_PORT->IDR & BTN_PIN) >> BTN_PIN_NUM) == btn.stat )){
+          // Выключаем прием пакетов
+//          rfmSetMode_s( REG_OPMODE_SLEEP );
+          // Снимаем прерывание, если оно возникло.
+          EXTI->IMR &= ~(DIO3_PIN);
+          EXTI->PR &= DIO3_PIN;
+
+          ut = getRtcTime();
+          // Проверка на первое нажатие кнопки ( включение контроллера )
+          if( btn.tOnSec == 0 ) {
+            if( btn.stat == BTN_OFF  ){
+              btn.tOnSec = ut;
+            }
+          }
+          else {
+            buttonProcess( ut );
+          }
+        }
+
+        // Выключаем прерывание от КНОПКИ
+        EXTI->IMR |= BTN_PIN;
+      }
       break;
+
     case STAT_RF_CSMA_START:
       // Канал свободен - отправляем сообщение
       EXTI->PR &= DIO3_PIN;
@@ -158,7 +178,7 @@ void csmaRun( void ){
 // Устанавливааем паузу случайной длительности (30-150 мс) в прослушивании канала на предмет тишины
 void csmaPause( void ){
   uint32_t pause;
-#if 1
+#ifdef STM32L052
   SYSCFG->CFGR3 |= SYSCFG_CFGR3_ENREF_RC48MHz;
   RCC->CRRCR |= RCC_CRRCR_HSI48ON;
   RCC->CCIPR |= RCC_CCIPR_HSI48MSEL;
@@ -181,7 +201,7 @@ void csmaPause( void ){
   RCC->CRRCR &= ~RCC_CRRCR_HSI48ON;
   SYSCFG->CFGR3 &= ~SYSCFG_CFGR3_ENREF_RC48MHz;
 #else
-  pause = 0x7FFFFFFF;
+  pause = rngGet();
 #endif
   // Длительность паузы
   pause = ((pause / (0xFFFFFFFFL/9)  ) + 1) * TX_DURAT * csmaCount;
@@ -191,7 +211,7 @@ void csmaPause( void ){
 
 static void sensDataSend( void ){
   // ---- Формируем пакет данных -----
-	pkt.paySensType = SENS_TYPE_LS;
+	pkt.paySensType = DRIV_TYPE_IRCTL;
   pkt.paySrcNode = rfm.nodeAddr;
   pkt.payMsgNum = msgNum++;
   pkt.payBat = sensData.bat;
@@ -215,3 +235,18 @@ void txEnd( void ){
   flags.batCplt = FALSE;
   state = STAT_READY;
 }
+
+#ifndef STM32L052
+static uint32_t rngGet( void ){
+  uint32_t rand0;
+  uint8_t b;
+  uint32_t k;
+
+  rand0 = (getRtcTime() << 16) + rtc.ss;
+  k = 1220703125;              // Множитель (простое число)
+  b = 7;                          // Приращение (простое число)
+  rand0 = ( k * rand0 + b );
+  return rand0;
+}
+#endif
+

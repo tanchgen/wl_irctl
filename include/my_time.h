@@ -63,8 +63,10 @@ extern volatile uint8_t sendToutFlag;
 extern __IO uint32_t myTick;
 
 // *********** Инициализация структуры ВРЕМЯ (сейчас - системное ) ************
-void rtcInit(void);
+void rtcStartInit(void);
+void rtcWorkInit(void);
 void timeInit( void );
+
 // Получение системного мремени
 uint32_t getTick( void );
 tUxTime xTm2Utime( volatile tRtc * prtc );

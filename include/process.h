@@ -89,10 +89,11 @@ typedef enum {
   SENS_TYPE_TWATER = 1,     // Температура воды
   SENS_TYPE_THEART = 2,     // Температура системы отопления
   SENS_TYPE_LS = 3,         // Освещенности
-  SENS_TYPE_COUNT = 6,  // Освещенности
+  SENS_TYPE_COUNT = 6,      // Счетчик импульсов
   SENS_TYPE_SW = 7,         // Контктный
-  SENS_TYPE_PIR = 11,   // ИК Движения
-  DRIV_TYPE_REL = 14,   // Исп.устр. РЕЛЕ
+  SENS_TYPE_PIR = 11,       // ИК Движения
+  DRIV_TYPE_REL = 14,       // Исп.устр. РЕЛЕ
+  DRIV_TYPE_IRCTL = 17,     // Исп.устр. Контр. кондиционера
 } eSensType;
 
 extern tUxTime sendTryStopTime;
