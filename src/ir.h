@@ -29,6 +29,7 @@
 #define FAN_FIELD_COUNT_MAX       10
 #define SWING_FIELD_COUNT_MAX     10
 
+// Состояние обучения
 typedef enum {
   RX_STAT_ONOFF,
   RX_STAT_TEMP,

@@ -40,11 +40,15 @@ int8_t onOffFlag = -1;
 // Признак получения ИК-пакета
 uint8_t irRxGetFlag = RESET;
 // Индекс следующего поля пакета
-uint8_t irRxIndex;
+uint8_t irRxIndex = 0;
+// Состояние (текущий параметр) обучения
 eRxStat rxStat;
 uint8_t fieldCount;
 
 uint8_t rxEdgeCnt;
+uint8_t headerFlag = FALSE;
+uint8_t headerFieldCnt = 0;
+eProtoName protoName = PROTO_NONAME;
 
 const uint8_t paramValCountMax[5] = { ONOFF_VAL_COUNT_MAX, TEMP_VAL_COUNT_MAX, MODE_VAL_COUNT_MAX,
                                       FAN_VAL_COUNT_MAX, SWING_VAL_COUNT_MAX };
@@ -177,6 +181,7 @@ void irRxProcess( void ){
 //    // Добавляем еще и прерывание от растущего фронт от ИК-приемника
 //    EXTI->RTSR |= IR_RX_PIN;
   if( c > 0 ){
+    decodProto( c );
     // Сохраняем длительность очередного импульса/паузы в массив 0-го пакета
     *(pIrPkt + irRxIndex++) = c;
   }
@@ -348,3 +353,4 @@ void learnReset( void ){
   paramValCount = 0;
   buzzerLongPulse();
 }
+
