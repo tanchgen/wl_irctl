@@ -8,6 +8,7 @@
 #include "ir.h"
 #include "stm32l0xx_it.h"
 
+uint32_t cnt5mks = 0;
 uint8_t rssiVol;    //
 //uint8_t txCpltCount = 0;
 
@@ -213,6 +214,10 @@ void EXTI4_15_IRQHandler( void ){
     EXTI->IMR &= ~(BTN_PIN);
     EXTI->PR &= BTN_PIN;
 
+    // Что бы ни было ранее - отключаем обработку входа ИК-приемника
+    EXTI->IMR &= ~(IR_RX_PIN);
+    EXTI->PR &= IR_RX_PIN;
+
     // Сохраняем состояние кнопки на момент прерывания для антидребеза
     btn.stat = (BTN_PORT->IDR & BTN_PIN) >> BTN_PIN_NUM;
     state = STAT_BTN_DBNC;
@@ -221,8 +226,8 @@ void EXTI4_15_IRQHandler( void ){
     wutSet(30000);
   }
   if ( EXTI->PR & IR_RX_PIN ){
-    EXTI->PR &= IR_RX_PIN;
     irRxProcess();
+    EXTI->PR &= IR_RX_PIN;
   }
 
   // Сохраняем настройки портов
@@ -237,6 +242,7 @@ void TIM6_IRQHandler( void ){
     TIM6->SR &= ~TIM_SR_UIF;
     // Переключаем вывод 1->0, 0->1
     BUZ_PORT->ODR ^= BUZ_PIN;
+    cnt5mks++;
 }
 
 // Обработчик прерывания таймера несущей (38кГц) ИК-передатчика
@@ -249,6 +255,7 @@ void TIM21_IRQHandler( void ){
 // Обработчик прерывания таймера модуляции (длительность импульсов и пауз) ИК-передатчика
 void TIM22_IRQHandler( void ){
   TIM22->SR &= ~TIM_SR_UIF;
+  TIM22->CR1 &= ~TIM_CR1_CEN;
   if( TIM22->CR1 & TIM_CR1_DIR ){
     // Обратный отсчет - передача
   }
@@ -257,9 +264,14 @@ void TIM22_IRQHandler( void ){
     // Длительность паузы более 100мс -> пакет принят.
 //    buzzerShortPulse();
     // Обнуляем счетчик импульсов и пауз
-    irRxIndex = 0;
+    GPIOA->ODR ^= GPIO_Pin_12;
     learnProcess();
+    irRxGetFlag = SET;
+    irRxIndex = 0;
+    // Включаем маску внешнего прерывания от ИК-приемника
     EXTI->IMR &= ~IR_RX_PIN;
+    // Выждем паузу 250мс до ожидания следующего ИК-пакета
+    state = STAT_IR_RX_STOP;
+    wutSet(250000);
   }
-  TIM22->CR1 &= ~TIM_CR1_CEN;
 }

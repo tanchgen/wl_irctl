@@ -8,9 +8,17 @@
 #include "stm32l0xx.h"
 #include "gpio.h"
 #include "my_time.h"
+#include "ir.h"
 #include "button.h"
 
 tButton btn;
+
+// Переключение вывода на выключение питания пищалки
+// и включения входа прерывания от кнопки
+static void buzzerPowerOff( void );
+// Переключение вывода на включение питания пищалки
+static void buzzerPowerOn( void );
+
 
 void buttonInit( void ){
   // Инициализация пина
@@ -60,17 +68,22 @@ void buttonProcess( uint32_t ut ){
     btn.tOnSec = ut;
     btn.tOnSS = rtc.ss;
 
-    // Снимаем маску с бита IR_RX
+    // Проверяем интервал времени с предыдущего отпускания
+    if( btn.tOffSec == 0){
+      tmpTime = 0;
+    }
+    else {
+      tmpTime = ( (uint64_t)ut << 8 ) + rtc.ss;
+      tmpTime -= ( ((uint64_t)btn.tOffSec << 8 ) + btn.tOffSS);
+    }
+
+//    if( tmpTime > 0x1400 ){
+//      // Интервал более 20-и секунд - сброс обучения
+//      learnReset();
+//    }
+    // Включаем обработку входа ИК-приемника
     EXTI->IMR |= IR_RX_PIN;
 
-    // Проверяем интервал времени с предыдущего отпускания
-    tmpTime = ( (uint64_t)ut << 8 ) + rtc.ss;
-    tmpTime -= ( ((uint64_t)btn.tOffSec << 8 ) + btn.tOffSS);
-
-    if( tmpTime > 0x500 ){
-      // Интервал более 5-и секунд - обнуляем счетчик нажатий
-      btn.pressCnt = 0;
-    }
   }
   else {
     //Кнопка отжата
@@ -82,17 +95,22 @@ void buttonProcess( uint32_t ut ){
     tmpTime = ( (uint64_t)ut << 8 ) + rtc.ss;
     tmpTime -= ( ((uint64_t)btn.tOnSec << 8 ) + btn.tOnSS);
 
-    if( tmpTime > 0x333 ){
-      // КНОПКА была нажата более ~1.2 секунды - обнуляем счетчик нажатий
-      btn.pressCnt = 0;
-    }
-    else {
-    // КНОПКА нажата более 0.125сек и менее 1.2сек - увеличиваем счетчик нажатий
-      btn.pressCnt++;
-      // Запрещаем прерывание от ИК-приемника
-      buzzerShortPulse();
-    }
+    if(irRxGetFlag == RESET){
+      // ИК-пакет не принимался.
+      if( tmpTime > 0x133 ){
+        // КНОПКА была нажата более ~1.2 секунды - обнуляем счетчик нажатий
+        learnReset();
+      }
+      else {
+        // КНОПКА нажата более 0.125сек и менее 1.2сек - увеличиваем счетчик нажатий
+        if( btn.pressCnt < PARAM_NUM_MAX){
+          btn.pressCnt++;
+          buzzerShortPulse();
+        }
 
+      }
+    }
+    irRxGetFlag = RESET;
   }
 }
 
@@ -112,38 +130,87 @@ void buzzerInit( void ){
    TIM6->PSC = 1048;
    // Перезагрузка каждый 2-й счет: (2-1)
    TIM6->ARR = 1;
-   // Прерывание по переполнению
-   TIM6->DIER |= TIM_DIER_UIE;
-   // Конфигурация NVIC для прерывания по таймеру TIM6
-   NVIC_EnableIRQ( TIM6_IRQn );
-   NVIC_SetPriority( TIM6_IRQn, 3 );
+//   // Прерывание по переполнению
+//   TIM6->DIER |= TIM_DIER_UIE;
+//   // Конфигурация NVIC для прерывания по таймеру TIM6
+//   NVIC_EnableIRQ( TIM6_IRQn );
+//   NVIC_SetPriority( TIM6_IRQn, 3 );
 
 }
 
 void buzzerShortPulse( void ){
+  buzzerPowerOn();
   // Включакм тактирование таймера
   RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
   // Запускаем пищалку
   TIM6->CR1 |= TIM_CR1_CEN;
 
-  mDelay( 70 );
+  // Будет пищать около 70мс
+  for( uint8_t i = 0; i< 144; i++ ){
+    BUZ_PORT->ODR ^= BUZ_PIN;
+    while( (TIM6->SR & TIM_SR_UIF) == 0 )
+    {}
+    TIM6->SR &= ~TIM_SR_UIF;
+  }
   // Останавливаем пищалку
   TIM6->CR1 &= ~TIM_CR1_CEN;
   TIM6->SR &= ~TIM_SR_UIF;
   // Включакм тактирование таймера
   RCC->APB1ENR &= ~RCC_APB1ENR_TIM6EN;
+  buzzerPowerOff();
 }
 
 void buzzerLongPulse( void ){
+
+  buzzerPowerOn();
   // Включакм тактирование таймера
   RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
   // Запускаем пищалку
   TIM6->CR1 |= TIM_CR1_CEN;
 
-  mDelay( 300 );
+  // Будет пищать около 300мс
+  for( uint16_t i = 0; i< 617; i++ ){
+    BUZ_PORT->ODR ^= BUZ_PIN;
+    while( (TIM6->SR & TIM_SR_UIF) == 0 )
+    {}
+    TIM6->SR &= ~TIM_SR_UIF;
+  }
   // Останавливаем пищалку
   TIM6->CR1 &= ~TIM_CR1_CEN;
+  TIM6->SR &= ~TIM_SR_UIF;
   // Включакм тактирование таймера
   RCC->APB1ENR &= ~RCC_APB1ENR_TIM6EN;
+  buzzerPowerOff();
+
+//  // Включакм тактирование таймера
+//  RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
+//  // Запускаем пищалку
+//  TIM6->CR1 |= TIM_CR1_CEN;
+//
+//  mDelay( 300 );
+//  // Останавливаем пищалку
+//  TIM6->CR1 &= ~TIM_CR1_CEN;
+//  // Включакм тактирование таймера
+//  RCC->APB1ENR &= ~RCC_APB1ENR_TIM6EN;
 }
 
+static void buzzerPowerOff( void ){
+  BTN_PORT->BSRR |= BTN_PIN;
+
+  // Переключаем на вход
+  BTN_PORT->MODER &=  ~(0x3<< (BTN_PIN_NUM * 2));
+  // Снимаем маску с бита BTN
+  EXTI->IMR |= BTN_PIN;
+
+}
+
+// Переключение вывода на включение питания пищалки
+static void buzzerPowerOn( void ){
+  // Включаем на выход
+  BTN_PORT->MODER |=  (0x1<< (BTN_PIN_NUM * 2));
+
+  // Выставляем маску для бита BTN
+  EXTI->IMR &= ~BTN_PIN;
+
+  BTN_PORT->BRR |= BTN_PIN;
+}

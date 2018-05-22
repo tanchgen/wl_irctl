@@ -55,11 +55,14 @@ void wutIrqHandler( void ){
           }
         }
 
-        // Выключаем прерывание от КНОПКИ
+        // Выключаем маску внешнего прерывания от КНОПКИ
         EXTI->IMR |= BTN_PIN;
       }
       break;
-
+    case STAT_IR_RX_STOP:
+      // Выключаем маску внешнего прерывания от ИК-приемника
+      EXTI->IMR |= IR_RX_PIN;
+      break;
     case STAT_RF_CSMA_START:
       // Канал свободен - отправляем сообщение
       EXTI->PR &= DIO3_PIN;

@@ -30,6 +30,8 @@ uint32_t GPIOB_MODER;
 uint32_t GPIOC_MODER;
 
 //extern uint8_t regBuf[];
+uint8_t risCount = 0;
+uint8_t failCount = 0;
 
 #if DEBUG_TIME
 
@@ -46,6 +48,7 @@ static inline void eepromUnlock( void );
 // ----- main() ---------------------------------------------------------------
 
 int main(int argc, char* argv[])
+
 {
   (void)argc;
   (void)argv;
@@ -61,10 +64,25 @@ int main(int argc, char* argv[])
   buttonInit();
   buzzerInit();
 
-  irRxInit();
+  RCC->IOPENR |= RCC_IOPENR_GPIOAEN;
+  RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
-  while(1)
-  {}
+  irRxInit();
+  // Включаем обработку входа ИК-приемника
+  EXTI->IMR |= IR_RX_PIN;
+
+//  while( (IR_RX_PORT->IDR & IR_RX_PIN) == 0)
+//  {}
+//
+//  while(1){
+//
+//    while( (IR_RX_PORT->IDR & IR_RX_PIN) != 0)
+//    {}
+//    failCount++;
+//    while( (IR_RX_PORT->IDR & IR_RX_PIN) == 0)
+//    {}
+//    risCount++;
+//  }
 
   // Засыпаем до нажатия на кнопку
   while( btn.tOnSec == 0 ) {
