@@ -48,7 +48,6 @@ static inline void eepromUnlock( void );
 // ----- main() ---------------------------------------------------------------
 
 int main(int argc, char* argv[])
-
 {
   (void)argc;
   (void)argv;
@@ -90,6 +89,9 @@ int main(int argc, char* argv[])
     __WFI();
 #endif
   }
+
+  while(1)
+  {}
 
   // Разлочили EEPROM
   eepromUnlock();

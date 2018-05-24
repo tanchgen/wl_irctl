@@ -8,12 +8,12 @@
 #include "string.h"
 
 #include "stm32l0xx.h"
-#include "main.h"
 #include "gpio.h"
 #include "button.h"
+#include "proto.h"
 #include "ir.h"
 
-// Массив НАЧАЛЬНОГО пакета
+// Массив НАЧАЛЬНОГО пакета неизвестного протокола
 uint16_t ir0Pkt[255];
 
 // Массив НЕ НАЧАЛЬНОГО пакета (приятый или отправляемый пакет)
@@ -48,7 +48,6 @@ uint8_t fieldCount;
 uint8_t rxEdgeCnt;
 uint8_t headerFlag = FALSE;
 uint8_t headerFieldCnt = 0;
-eProtoName protoName = PROTO_NONAME;
 
 const uint8_t paramValCountMax[5] = { ONOFF_VAL_COUNT_MAX, TEMP_VAL_COUNT_MAX, MODE_VAL_COUNT_MAX,
                                       FAN_VAL_COUNT_MAX, SWING_VAL_COUNT_MAX };
@@ -72,7 +71,6 @@ uint8_t paramValCount = 0;
 
 
 int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt );
-inline int8_t irDurCmp( uint16_t dur0, uint16_t dur);
 
 // Инициализация таймера несущей ИК-передатчика TIM21
 void irCarierTimInit( void ){
@@ -175,27 +173,28 @@ void irRxProcess( void ){
 
   rxEdgeCnt++;
 
+  GPIOA->ODR ^= GPIO_Pin_12;
+
 //  if( (irRxIndex != 0) || ((IR_RX_PORT->IDR & IR_RX_PIN) == 0) ){
     // Начало пакета - запускаем счет таймера модуляции
 //    TIM22->CR1 |= TIM_CR1_CEN;
 //    // Добавляем еще и прерывание от растущего фронт от ИК-приемника
 //    EXTI->RTSR |= IR_RX_PIN;
-  if( c > 0 ){
-    decodProto( c );
+  if( c > 9 ){
     // Сохраняем длительность очередного импульса/паузы в массив 0-го пакета
     *(pIrPkt + irRxIndex++) = c;
   }
-  else {
+  else if( c == 0){
     TIM22->CR1 |= TIM_CR1_CEN;
     EXTI->RTSR |= IR_RX_PIN;
   }
-  GPIOA->ODR ^= GPIO_Pin_12;
   // Сбрасываем счетчик
   TIM22->CNT = 0x0;
 
 }
 
-void learnProcess( void ){
+uint8_t learnProcess( void ){
+  uint8_t prName = PROTO_NONAME;
 
   if( (rxStat != RX_STAT_0) && ( onOffFlag == ON ) ){
     if( rxStat != btn.pressCnt){
@@ -211,7 +210,9 @@ void learnProcess( void ){
 
     case RX_STAT_0:
       // Приняли начальный НАЧАЛЬНЫЙ пакет
+      prName = protoDecod( ir0Pkt, irRxIndex );
       pIrPkt = irPkt;
+
       buzzerShortPulse();
       rxStat = RX_STAT_ONOFF;
       break;
@@ -269,7 +270,7 @@ void learnProcess( void ){
   }
 
 
-
+  return prName;
 }
 
 int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
@@ -291,7 +292,7 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
   fieldList = pIrField[ sellNum ];
 
   for( uint8_t i = 0; i < irRxIndex; i++ ){
-    if( irDurCmp( ir0Pkt[i], irPkt[i]) ){
+    if( irDurCmp( ir0Pkt[i], irPkt[i], 20) ){
       // Несовпадение поля
       diffCnt++;
       // Проверка:
@@ -327,20 +328,6 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
   }
 exit:
   return diffCnt;
-}
-
-// Сравнение длительностей полей в ИК-пакете
-inline int8_t irDurCmp( uint16_t dur0, uint16_t dur){
-  uint16_t tmp;
-  if( dur0 > dur){
-    tmp = dur0;
-    dur0 = dur;
-  }
-  else {
-    tmp = dur;
-  }
-  // Если разница меньше 10-х % возвращаем 0 (FALSE), иначе 1 (TRUE)
-  return ( (tmp - dur0) > (dur0/5) )? TRUE: FALSE;
 }
 
 void learnReset( void ){

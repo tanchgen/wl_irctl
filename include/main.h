@@ -25,13 +25,15 @@
 #endif
 
 #ifndef NULL
-#define NULL    (void *)0
+#define NULL    ((void *)0)
 #endif
 
+//#ifndef TRUE
 enum {
   FALSE,
   TRUE
 };
+//#endif
 
 enum {
   OFF,

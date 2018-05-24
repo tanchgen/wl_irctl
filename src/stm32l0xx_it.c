@@ -6,6 +6,7 @@
 #include "rfm69.h"
 #include "button.h"
 #include "ir.h"
+#include "proto.h"
 #include "stm32l0xx_it.h"
 
 uint32_t cnt5mks = 0;
@@ -265,7 +266,14 @@ void TIM22_IRQHandler( void ){
 //    buzzerShortPulse();
     // Обнуляем счетчик импульсов и пауз
     GPIOA->ODR ^= GPIO_Pin_12;
-    learnProcess();
+    if( protoName == PROTO_NONAME ){
+      protoName = learnProcess();
+    }
+    else {
+      buzzerShortPulse();
+      mDelay(125);
+      buzzerShortPulse();
+    }
     irRxGetFlag = SET;
     irRxIndex = 0;
     // Включаем маску внешнего прерывания от ИК-приемника

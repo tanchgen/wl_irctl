@@ -8,6 +8,8 @@
 #ifndef IR_H_
 #define IR_H_
 
+#include "main.h"
+
 /* Максимальное количествопараметров параметров:
  * 0 - ON/OFF,
  * 1 - TEMP,
@@ -55,10 +57,14 @@ typedef struct {
 extern uint8_t irRxIndex;
 extern uint8_t irRxGetFlag;
 extern uint8_t paramValCount;
+extern uint16_t ir0PktNoname[255];
+// Указатель на пакет: НАЧАЛЬНЫЙ, НЕ начальный, отправляемый
+extern uint16_t *pIrPkt;
+extern uint16_t ir0Pkt[];
 
 void irRxInit( void );
 void irRxProcess( void );
-void learnProcess( void );
+uint8_t learnProcess( void );
 void learnReset( void );
 void irModulTimInit( void );
 
