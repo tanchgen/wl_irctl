@@ -212,7 +212,6 @@ uint8_t learnProcess( void ){
       // Приняли начальный НАЧАЛЬНЫЙ пакет
       prName = protoDecod( ir0Pkt, irRxIndex );
       pIrPkt = irPkt;
-
       buzzerShortPulse();
       rxStat = RX_STAT_ONOFF;
       break;
@@ -231,18 +230,17 @@ uint8_t learnProcess( void ){
           break;
         case OFF:
           // Сравниваем НУЛЕВОЙ пакет с ON-пакетом
-          if( (rec = rxPktCmp( rxStat, 0 )) != 0 ){
+          if( (rec = rxPktCmp( rxStat, 0 )) > 0 ){
             // Различий не обнаружено - так быть не должно
-            // TODO: Обработка ошибки обучения (может длинный зуммер?)
             learnReset();
-            buzzerLongPulse();
           }
           else if( rec == 0 ){
             buzzerShortPulse();
             onOffFlag = ON;
           }
           else {
-            // TODO: Обработка ошибки обучения (может длинный зуммер?)
+            // Ошибка приема пакета
+            learnReset();
           }
           break;
         default:
@@ -256,9 +254,11 @@ uint8_t learnProcess( void ){
     case RX_STAT_SWING:
       if( paramValCount < paramValCountMax[rxStat]){
         if( rxPktCmp( rxStat, paramValCount ) < 0){
-          // TODO: Обработка ошибки обучения (может длинный зуммер?)
+          // Ошибка приема пакета
+          learnReset();
         }
         else {
+          // TODO: Проверяем на конец обучения
           buzzerShortPulse();
           // Порядковый номер величины параметра
           paramValCount++;
@@ -324,17 +324,52 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
   }
   pIrDiffField = fieldList;
   if(onOffFlag != OFF){
-    rxFieldQuant[ sellNum ] = diffCnt;
+    if( diffCnt < 14){
+      rxFieldQuant[ sellNum ] = diffCnt;
+    }
+    else {
+      // Слишком большое количество изменений - ошибка пакета
+      diffCnt = -1;
+      goto exit;
+    }
+
   }
 exit:
   return diffCnt;
 }
 
 void learnReset( void ){
-  if( (rxStat == RX_STAT_0) || (rxStat == RX_STAT_ONOFF) ){
+  uint32_t * p32;
+
+  if( onOffFlag == ON ){
+    // Обучение
     rxStat = RX_STAT_0;
     onOffFlag = -1;
+
+    // Очищаем  сохраненные изменяемые поля
+    p32 = (uint32_t *)(pIrField[0]);
+    for(uint8_t i = 0; i < rxFieldQuant[0]; i++){
+      *(p32+i) = 0;
+    }
+    pIrField[0] = NULL;
+    rxFieldQuant[0] = 0;
+    pIrDiffField = irDiffField;
   }
+  else {
+    // Очищаем  сохраненные изменяемые поля
+    p32 = (uint32_t *)(pIrField[0]+rxFieldQuant[0]);
+    for(uint8_t i = 0; i < (sizeof(irDiffField)/4 - rxFieldQuant[0]); i++){
+      *(p32+i) = 0;
+    }
+    for(uint8_t i = 1; i < (sizeof(pIrField)/4 - 1); i++){
+      pIrField[i] = NULL;
+    }
+    for(uint8_t i = 1; i < (sizeof(rxFieldQuant) - 1); i++){
+      rxFieldQuant[i] = 0;
+    }
+    pIrDiffField = irDiffField + rxFieldQuant[0];
+  }
+
   // обнуляем счетчик нажатий
   btn.pressCnt = 0;
   paramValCount = 0;

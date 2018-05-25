@@ -101,13 +101,20 @@ void buttonProcess( uint32_t ut ){
         // КНОПКА была нажата более ~1.2 секунды - обнуляем счетчик нажатий
         learnReset();
       }
-      else {
+      else if( onOffFlag == ON  ){
+        // Начальное обучение пройдено - можно обучать параметрам (TEMP, MODE, FAN, SWING)
         // КНОПКА нажата более 0.125сек и менее 1.2сек - увеличиваем счетчик нажатий
         if( btn.pressCnt < PARAM_NUM_MAX){
           btn.pressCnt++;
-          buzzerShortPulse();
         }
-
+        else {
+          btn.pressCnt = 1;
+        }
+        // Подаем столько сигналов, сколько в счетчике нажатий
+        for(uint8_t i = 0; i < btn.pressCnt; i++ ){
+          buzzerShortPulse();
+          mDelay(125);
+        }
       }
     }
     irRxGetFlag = RESET;

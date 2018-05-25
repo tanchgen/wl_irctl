@@ -54,6 +54,7 @@ typedef struct {
   uint16_t fieldDur;        // Продолжительность поля в 10мкс
 } tRxFieldLst;
 
+extern int8_t onOffFlag;
 extern uint8_t irRxIndex;
 extern uint8_t irRxGetFlag;
 extern uint8_t paramValCount;

@@ -268,11 +268,11 @@ void TIM22_IRQHandler( void ){
     GPIOA->ODR ^= GPIO_Pin_12;
     if( protoName == PROTO_NONAME ){
       protoName = learnProcess();
-    }
-    else {
-      buzzerShortPulse();
-      mDelay(125);
-      buzzerShortPulse();
+      if( protoName != PROTO_NONAME ){
+        // Протокол известен - конец обучению
+        mDelay(125);
+        buzzerLongPulse();
+      }
     }
     irRxGetFlag = SET;
     irRxIndex = 0;

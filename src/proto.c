@@ -70,8 +70,8 @@ tFieldArr smsgProtoField[5] = {
  */
 // Описание протоколов
 tProtoDesc protoDesc[PROTO_NUM] = {
-    {smsgProtoField, 18, 18, 180, 0},      // Протокол SAMSUNG
     {anikProtoField, 25, 21, 61, 0},       // Протокол AERONIK
+    {smsgProtoField, 18, 18, 180, 0},      // Протокол SAMSUNG
     {NULL, 0, 0, 0, 0},                    // Протокол Daikin
     {NULL, 0, 0, 0, 0},                    // Протокол Panasonic
     {NULL, 0, 0, 0, 0},                    // Протокол Mitsubishi
@@ -89,7 +89,7 @@ uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len ){
   int8_t areaNum;
 
   //
-  for( protoCnt = PROTO_SAMSUNG; (protoCnt < PROTO_NONAME); protoCnt++ ){
+  for( protoCnt = PROTO_AERONIK; (protoCnt < PROTO_NONAME); protoCnt++ ){
     uint8_t i;
 
     tFieldArr * pPrDsc = protoDesc[protoCnt].protoFieldArr;

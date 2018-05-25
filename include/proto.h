@@ -12,8 +12,8 @@
 
 // Имена доступных протоколов
 typedef enum {
-  PROTO_SAMSUNG,
   PROTO_AERONIK,
+  PROTO_SAMSUNG,
   PROTO_DAIKIN,
   PROTO_PANAS,
   PROTO_MITSU,
