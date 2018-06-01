@@ -54,10 +54,10 @@
 
 // ========================= ИК-ПЕРЕДАТЧИК ==============================
 // Номер пина вывода ИК-передатчика
-#define IR_TX_PIN        GPIO_Pin_1
-#define IR_TX_PIN_NUM    1
-#define IR_TX_PORT       GPIOB
-#define IR_TX_PORT_NUM   1
+#define IR_TX_PIN        GPIO_Pin_2
+#define IR_TX_PIN_NUM    2
+#define IR_TX_PORT       GPIOA
+#define IR_TX_PORT_NUM   0
 
 // ========================= ИК-ПРИЕМНИК ====================================
 // Номер пина ИК-приемника

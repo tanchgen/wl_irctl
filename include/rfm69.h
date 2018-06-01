@@ -29,8 +29,8 @@
 #define DIO1_PIN_NUM    1
 #define DIO1_PORT       GPIOA
 
-#define DIO2_PIN        GPIO_Pin_2
-#define DIO2_PIN_NUM    2
+#define DIO2_PIN        GPIO_Pin_8
+#define DIO2_PIN_NUM    8
 #define DIO2_PORT       GPIOA
 
 #define DIO3_PIN        GPIO_Pin_3

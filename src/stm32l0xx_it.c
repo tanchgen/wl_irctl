@@ -22,6 +22,7 @@ uint8_t rssiVol;    //
 //#endif
 
 /* External variables --------------------------------------------------------*/
+extern uint8_t txFlag;
 
 extern volatile uint8_t csmaCount;
 
@@ -248,17 +249,53 @@ void TIM6_IRQHandler( void ){
 
 // Обработчик прерывания таймера несущей (38кГц) ИК-передатчика
 void TIM21_IRQHandler( void ){
-  TIM21->SR &= ~TIM_SR_UIF;
-  // Переключаем вывод 1->0, 0->1
-  IR_TX_PORT->ODR ^= IR_TX_PIN;
+////  IR_TX_PORT->BRR ^= IR_TX_PIN;
+//  if( pulseLen == 0 ){
+//    // Пульс закончен - выключаем пин
+//    IR_TX_PORT->BSRR |= IR_TX_PIN;
+//    if( txFieldCount++ > field0Num ){
+//      // Все поля пакета переданы - все выключаем
+//      TIM21->CR1 &= TIM_CR1_CEN;
+//    }
+//    else {
+//      pulseLen = 0x19;
+//      //  pulseLen = irPkt[txFieldCount++];
+//      pausePulse = !pausePulse;
+//    }
+//  }
+//  else if( TIM21->SR & TIM_SR_UIF ){
+//    if( pausePulse == ON ){
+//      // Пин вверх - растущий фронт импульса
+//      IR_TX_PORT->BRR |= IR_TX_PIN;
+//    }
+////    IR_TX_PORT->BRR |= IR_TX_PIN;
+//    TIM21->SR &= ~(TIM_SR_UIF);
+//  }
+//  else if( TIM21->SR & TIM_SR_CC1IF ){
+//    pulseLen--;
+//    // Пин вниз - падающий фронт импульса
+//    IR_TX_PORT->BSRR |= IR_TX_PIN;
+//    TIM21->SR &= ~(TIM_SR_CC1IF);
+//  }
 }
 
 // Обработчик прерывания таймера модуляции (длительность импульсов и пауз) ИК-передатчика
 void TIM22_IRQHandler( void ){
   TIM22->SR &= ~TIM_SR_UIF;
-  TIM22->CR1 &= ~TIM_CR1_CEN;
-  if( TIM22->CR1 & TIM_CR1_DIR ){
-    // Обратный отсчет - передача
+  if( txFlag != OFF ){
+    if( TIM22->SR & TIM_SR_UIF){
+      IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
+      TIM22->SR &= ~TIM_SR_UIF;
+    }
+    else if( TIM22->SR & TIM_SR_CC1IF){
+      // Пульс закончился
+      if( txFieldCount++ > field0Num ){
+        // Передача закончена - все выключаем
+        TIM22->CR1 &= ~TIM_CR1_CEN;
+        txFlag = !txFlag;
+      }
+      TIM22->SR &= ~TIM_SR_CC1IF;
+    }
   }
   else {
     // Примой счет - прием (обучение)
@@ -266,16 +303,18 @@ void TIM22_IRQHandler( void ){
 //    buzzerShortPulse();
     // Обнуляем счетчик импульсов и пауз
     GPIOA->ODR ^= GPIO_Pin_12;
-    if( protoName == PROTO_NONAME ){
-      protoName = learnProcess();
-      if( protoName != PROTO_NONAME ){
-        // Протокол известен - конец обучению
-        mDelay(125);
-        buzzerLongPulse();
+    if( irRxIndex > 0 ){
+      if( protoName == PROTO_NONAME ){
+        protoName = learnProcess();
+        if( protoName != PROTO_NONAME ){
+          // Протокол известен - конец обучению
+          mDelay(125);
+          buzzerLongPulse();
+        }
       }
+      irRxGetFlag = SET;
+      irRxIndex = 0;
     }
-    irRxGetFlag = SET;
-    irRxIndex = 0;
     // Включаем маску внешнего прерывания от ИК-приемника
     EXTI->IMR &= ~IR_RX_PIN;
     // Выждем паузу 250мс до ожидания следующего ИК-пакета

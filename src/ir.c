@@ -14,10 +14,10 @@
 #include "ir.h"
 
 // Массив НАЧАЛЬНОГО пакета неизвестного протокола
-uint16_t ir0Pkt[255];
+uint16_t __aligned(4) ir0Pkt[256];
 
 // Массив НЕ НАЧАЛЬНОГО пакета (приятый или отправляемый пакет)
-uint16_t irPkt[255];
+uint16_t __aligned(4) irPkt[256];
 
 // Указатель на пакет: НАЧАЛЬНЫЙ, НЕ начальный, отправляемый
 uint16_t *pIrPkt;
@@ -29,10 +29,10 @@ tRxFieldLst irDiffField[4+120+30+30+30];
 tRxFieldLst * pIrDiffField = irDiffField;
 
 // Массив указателей на структуры изменяемых полей
-tRxFieldLst * pIrField[ONOFF_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + \
+tRxFieldLst * pIrField[ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + \
                        FAN_VAL_COUNT_MAX + SWING_VAL_COUNT_MAX];
 // Массив количества изменных полей для каждого параметра
-uint8_t rxFieldQuant[ONOFF_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + \
+uint8_t rxFieldQuant[ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + \
                        FAN_VAL_COUNT_MAX + SWING_VAL_COUNT_MAX];
 
 int8_t onOffFlag = -1;
@@ -40,16 +40,17 @@ int8_t onOffFlag = -1;
 // Признак получения ИК-пакета
 uint8_t irRxGetFlag = RESET;
 // Индекс следующего поля пакета
-uint8_t irRxIndex = 0;
+uint16_t irRxIndex = 0;
 // Состояние (текущий параметр) обучения
 eRxStat rxStat;
-uint8_t fieldCount;
+uint8_t field0Num;                  // Соличество полей в НАЧАЛЬНОМ пакете
+uint8_t txFieldCount;               // Счетчик полей, передаваемых по ИК-каналу
 
-uint8_t rxEdgeCnt;
+uint16_t rxEdgeCnt;
 uint8_t headerFlag = FALSE;
 uint8_t headerFieldCnt = 0;
 
-const uint8_t paramValCountMax[5] = { ONOFF_VAL_COUNT_MAX, TEMP_VAL_COUNT_MAX, MODE_VAL_COUNT_MAX,
+const uint8_t paramValCountMax[5] = { ONOFF_VAL_COUNT_MAX, MODE_VAL_COUNT_MAX, TEMP_VAL_COUNT_MAX,
                                       FAN_VAL_COUNT_MAX, SWING_VAL_COUNT_MAX };
 /* Начальная позиция полей различий для каждого параметра:
  * ON/OFF
@@ -62,9 +63,9 @@ const uint8_t paramfieldBegin[5] =
 {
   0,
   ONOFF_VAL_COUNT_MAX,
-  ONOFF_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX,
-  ONOFF_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX,
-  ONOFF_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + FAN_VAL_COUNT_MAX
+  ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX,
+  ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX,
+  ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + FAN_VAL_COUNT_MAX
 };
 
 uint8_t paramValCount = 0;
@@ -74,26 +75,27 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt );
 
 // Инициализация таймера несущей ИК-передатчика TIM21
 void irCarierTimInit( void ){
-  // Инициируем вывод ИК
-  RCC->IOPENR |= (RCC_IOPENR_GPIOAEN << IR_TX_PORT_NUM);
-
-  IR_TX_PORT->OTYPER &= ~(IR_TX_PIN);
-  IR_TX_PORT->OSPEEDR = (IR_TX_PORT->OSPEEDR & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
-  IR_TX_PORT->PUPDR = (IR_TX_PORT->PUPDR & ~(0x3 << (IR_TX_PIN_NUM * 2)));
-  IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
-
   // Включакм тактирование таймера
    RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
-   // Получаем частоту счета 38000Гц * 2: (55-1)
-   TIM21->PSC = 54;
-   // Перезагрузка каждый 2-й счет: (2-1)
-   TIM21->ARR = 1;
-   // Прерывание по переполнению
-   TIM21->DIER |= TIM_DIER_UIE;
-   // Конфигурация NVIC для прерывания по таймеру TIM6
-   NVIC_EnableIRQ( TIM21_IRQn );
-   NVIC_SetPriority( TIM21_IRQn, 2 );
+   TIM21->PSC = 0;
+   // Получаем частоту счета 38000Гц: (110-1)
+   TIM21->ARR = 109;
+   // Скважность ~ 1/3
+   TIM21->CCR1 = (110-36) - 1;
+   // Режим PWM1, Активный - низкий уровень
+//   TIM21->CCMR1 = (TIM21->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1) | TIM_CCMR1_OC1PE;
+   TIM21->CCMR1 = (TIM21->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0) | TIM_CCMR1_OC1PE;
+   TIM21->CCER |= TIM_CCER_CC1E | TIM_CCER_CC1P;
+   // Внешняя синхронизация: режим "Gated", ITR1 (TIM22)
+   TIM21->SMCR |= (TIM_SMCR_SMS_2 | TIM_SMCR_SMS_0) | (TIM_SMCR_TS_0);
 
+//   TIM21->DIER |= TIM_DIER_UIE | TIM_DIER_CC1IE;
+   // Конфигурация NVIC для прерывания по таймеру TIM21
+//   NVIC_EnableIRQ( TIM21_IRQn );
+//   NVIC_SetPriority( TIM21_IRQn, 2 );
+
+   // Выключакм тактирование таймера до востребования
+//    RCC->APB2ENR &= ~RCC_APB2ENR_TIM21EN;
 }
 
 // Инициализация таймера модуляции ИК-сигнала TIM22
@@ -108,9 +110,10 @@ void irModulTimInit( void ){
    // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
    TIM22->PSC = (110)-1;
    // Перезагрузка по истечение 100мс
-   TIM22->ARR = 10000;
-   TIM22->CNT = 9999;
+   TIM22->ARR = 1480;
    TIM22->CR1 |= TIM_CR1_CEN;
+   TIM22->EGR = TIM_EGR_UG;
+
    // Ждем, пока обновится счетчик
    while( (TIM22->SR & TIM_SR_UIF) == 0 )
    {}
@@ -168,7 +171,6 @@ void irRxInit( void ){
 }
 
 void irRxProcess( void ){
-
   uint16_t c = TIM22->CNT;
 
   rxEdgeCnt++;
@@ -190,7 +192,6 @@ void irRxProcess( void ){
   }
   // Сбрасываем счетчик
   TIM22->CNT = 0x0;
-
 }
 
 uint8_t learnProcess( void ){
@@ -237,6 +238,7 @@ uint8_t learnProcess( void ){
           else if( rec == 0 ){
             buzzerShortPulse();
             onOffFlag = ON;
+            field0Num = irRxIndex;
           }
           else {
             // Ошибка приема пакета
@@ -253,7 +255,11 @@ uint8_t learnProcess( void ){
     case RX_STAT_FAN:
     case RX_STAT_SWING:
       if( paramValCount < paramValCountMax[rxStat]){
-        if( rxPktCmp( rxStat, paramValCount ) < 0){
+        if( field0Num != irRxIndex ){
+          // Ошибка - Длина принятого пакета отличается от длины НАЧАЛЬНОГО пакета
+          learnReset();
+        }
+        else if( rxPktCmp( rxStat, paramValCount ) < 0){
           // Ошибка приема пакета
           learnReset();
         }
@@ -341,7 +347,7 @@ exit:
 void learnReset( void ){
   uint32_t * p32;
 
-  if( onOffFlag == ON ){
+  if( onOffFlag != ON ){
     // Обучение
     rxStat = RX_STAT_0;
     onOffFlag = -1;
@@ -374,5 +380,53 @@ void learnReset( void ){
   btn.pressCnt = 0;
   paramValCount = 0;
   buzzerLongPulse();
+}
+
+uint8_t irPktSend( void ){
+
+  // Надо отправить массив полей длиной = txFieldCount + 1
+  txFieldCount = 0;
+
+
+  // Вдруг нажата кнопка - момент обучения -> выходим с ошибкой
+  if( btn.stat == BTN_ON ){
+    return 1;
+  }
+  // Включакм тактирование таймера модулирующей
+   RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
+
+  // Записываем длительность поля (импульс или пауза) в таймер
+  TIM22->ARR = irPkt[txFieldCount++];
+  // Обратный отсчет
+  TIM22->CR1 |= TIM_CR1_DIR;
+  // Запуск
+  // Пин -> ВНИЗ
+  IR_TX_PORT->BRR |= IR_TX_PIN;
+
+  // Включаем тактирование таймера несущей
+   RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
+  // Запускем таймер несущей
+  TIM21->CR1 |= TIM_CR1_CEN;
+
+  // Запускем таймер модулирующей
+  TIM22->CR1 |= TIM_CR1_CEN;
+
+  // Выключаем засыпание по выходу из прерывания до окончания отправки пакета по ИК-каналу
+  uint32_t tmp = SCB->SCR;
+  // Сохраняем засыпание по выходу из прерывания
+  SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+  // Ждем, пока передача не закончится
+  while( TIM22->CR1 & TIM_CR1_CEN )
+  {}
+
+  // Восстанавливаем прямой отсчет
+  TIM22->CR1 &= ~TIM_CR1_DIR;
+  // Выключаем тактирование таймера модулирующей
+   RCC->APB2ENR &= ~RCC_APB2ENR_TIM21EN;
+
+  // Восстанавливаем засыпание по выходу из прерывания
+  SCB->SCR = tmp;
+
+  return 0;
 }
 

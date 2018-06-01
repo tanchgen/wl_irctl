@@ -11,6 +11,7 @@
 #include "process.h"
 #include "button.h"
 #include "ir.h"
+#include "proto.h"
 #include "main.h"
 
 //volatile uint32_t mTick;
@@ -33,6 +34,9 @@ uint32_t GPIOC_MODER;
 uint8_t risCount = 0;
 uint8_t failCount = 0;
 
+uint8_t txFlag = 0;
+uint8_t pausePulse;
+
 #if DEBUG_TIME
 
 tDbgTime dbgTime;
@@ -52,6 +56,7 @@ int main(int argc, char* argv[])
   (void)argc;
   (void)argv;
 
+  irTxPinInit();
   mainInit();
   sysClockInit();
 
@@ -66,9 +71,82 @@ int main(int argc, char* argv[])
   RCC->IOPENR |= RCC_IOPENR_GPIOAEN;
   RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
+
+// ==============================================================================
   irRxInit();
   // Включаем обработку входа ИК-приемника
   EXTI->IMR |= IR_RX_PIN;
+
+
+  DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM21_STOP | DBGMCU_APB2_FZ_DBG_TIM22_STOP;
+  irCarierTimInit();
+
+  txFieldCount = 0;
+  field0Num = 254;
+
+
+  // Альтернативная функция AF0 - TIM21_CH1
+  RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
+  TIM21->CR1 |= TIM_CR1_CEN;
+  TIM21->EGR |= TIM_EGR_UG;
+
+  // Включакм тактирование таймера
+  RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
+  // TODO: Настроить отключение таймера в режиме STOP и востановление его по потребности
+
+  // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
+  TIM22->PSC = (110)-1;
+  // Перезагрузка по истечение 100мс
+  TIM22->ARR = 0x19 * 2;
+  TIM22->CCR1 = 0x19;
+
+  TIM22->DIER &= ~TIM_DIER_UIE;
+  // OC1REF - как TGRO
+  TIM22->CR2 |= TIM_CR2_MMS_2;
+  // PWM1
+  TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0) | TIM_CCMR1_OC1PE;
+  TIM22->SR = 0;
+//  // Прерывание по переполнению
+  TIM22->DIER |= TIM_DIER_CC1IE;
+//  // Конфигурация NVIC для прерывания по таймеру TIM6
+  NVIC_EnableIRQ( TIM22_IRQn );
+  NVIC_SetPriority( TIM22_IRQn, 1 );
+  txFlag = ON;
+
+  IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
+  TIM22->CR1 |= TIM_CR1_CEN;
+  TIM22->EGR = TIM_EGR_UG;
+
+  while(1)
+  {}
+
+//  while(1){
+//    // Надо отправить массив полей длиной = txFieldCount + 1
+//    txFieldCount = 0;
+//    field0Num = 255;
+//
+//    // Запуск
+//    // Включаем тактирование таймера несущей
+//    RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
+//    TIM21->DIER &= ~TIM_DIER_UIE;
+//    TIM21->EGR |= TIM_EGR_UG;
+//    TIM21->SR &= ~TIM_SR_UIF;
+//    TIM21->DIER |= TIM_DIER_UIE;
+//    // Пин -> ВНИЗ
+//    IR_TX_PORT->BRR |= IR_TX_PIN;
+//    pulseLen = 0x19;
+//    pausePulse = ON;
+//    //  pulseLen = irPkt[txFieldCount++];
+//    TIM21->CR1 |= TIM_CR1_CEN;
+//
+//    // Ждем, пока передача не закончится
+//    while( TIM21->CR1 & TIM_CR1_CEN )
+//    {}
+//
+//    // Выключаем тактирование таймера модулирующей
+//    RCC->APB2ENR &= ~RCC_APB2ENR_TIM21EN;
+//  }
+// ===================================================================
 
 //  while( (IR_RX_PORT->IDR & IR_RX_PIN) == 0)
 //  {}
@@ -90,6 +168,24 @@ int main(int argc, char* argv[])
 #endif
   }
 
+  // ################## ДЛЯ ТЕСТИРОВАНИЯ ################################
+  // Ждем определения протокола (обучения)
+  while( (protoName == PROTO_NONAME) && !((rxStat == RX_STAT_SWING) && (paramValCount == 5)) )
+  {}
+  // Формируем сырой пакет для передачи по ИК
+  if( protoName == PROTO_NONAME){
+    protoNonDefCod();
+  }
+  else {
+    protoDefCod( &protoDesc[protoName] );
+  }
+
+  while( btn.stat == BTN_ON )
+  {}
+  irCarierTimInit();
+  irPktSend();
+
+  // ####################################################################
   while(1)
   {}
 
@@ -108,6 +204,8 @@ int main(int argc, char* argv[])
 
   // В рабочем режиме включаем будильник
   rtcWorkInit();
+  // В рабочем режиме включаем засыпание по выходу из прерывания
+  SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
   // Запустили измерения
   mesureStart();
 //  GPIOB->MODER = (GPIOB->MODER & ~GPIO_MODER_MODE3) | GPIO_MODER_MODE3_0;

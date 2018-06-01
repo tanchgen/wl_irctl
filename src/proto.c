@@ -14,7 +14,11 @@
 #endif
 
 
+// Установка параметров для Определенного
+void protoDefParamSet( uint16_t * arr, const tParamPos * pprm );
 int8_t areaFind( tFieldArr * pFldArr, uint8_t *idx );
+uint8_t crcCod( uint16_t * arr, uint8_t len, uint8_t mod );
+uint8_t acParamValue( uint8_t param );
 
 //
 eProtoName protoName = PROTO_NONAME;
@@ -29,12 +33,22 @@ tFieldArr newProtoField = {
     ir0Pkt
 };
 
-// Опитсание протокола AERONIK
+// Режим работы кондиционера
+tAcData acData = {
+    ON,             // Включить
+    COOL,           // Охлаждение
+    7,              // 23гр.Ц
+    FAN_SPEED_AUTO,  // Скорость - авто
+    SWING_POS_1
+};
+
+//=============== Опитсание протокола AERONIK ============================
 // Длительности (кол-во периодов несущей) полей заголовка
 uint16_t anikHeader0Field[2] = {344, 172};
 // Длительности полей паузы
 uint16_t anikMidPauseField[2] = {25, 763};
-uint16_t anikMidPause2Field = 25;
+uint16_t anikMidPause2Field = 52;
+
 // Описание ИК-пакета протокола AERONIK
 tFieldArr anikProtoField[6] = {
   {FTYPE_DUR, 2, anikHeader0Field},       // Заголовок: 2 поля, размер - длительности полей, поля в массиве anikHeader0Field
@@ -45,7 +59,21 @@ tFieldArr anikProtoField[6] = {
   {FTYPE_DUR, 0, NULL}                             // Признак конца пакета
 };
 
-// Опитсание протокола SAMSUNG
+// НУЛЕВОЙ пакет AERONIK
+const tProtoPkt0 anikPkt0 = { 5, { 0x0709, 0x5040, 0x0002, 0x2000, 0xc000 }};;
+const tParamPos anikParams[6] = {
+    {0X1, 3},     // ONOFF
+    {0x7, 0},     // MODE
+    {0xF, 8},     // TEMP
+    {0x2, 4},     // FAN
+    {0xF, 35},    // SWING
+    {0xF, 76}     // CRC
+};
+
+const tCrc anikCrc = { 9, 4 };
+
+
+//============== Опитсание протокола SAMSUNG =============================
 // Длительности (кол-во периодов несущей) полей заголовка
 uint16_t smsgHeader0Field[4] = {25, 667, 112, 340};
 // Длительности полей паузы
@@ -59,9 +87,25 @@ tFieldArr smsgProtoField[5] = {
   {FTYPE_DUR, 0, NULL}                             // Признак конца пакета
 };
 
+// НУЛЕВОЙ пакет AERONIK
+const tProtoPkt0 smsgPkt0 = { 5, { 0x0709, 0x5040, 0x0002, 0x2000, 0xc000 }};;
+
+const tParamPos smsgParams[5] = {
+    {0X1, 3},     // ONOFF
+    {0x7, 0},     // MODE
+    {0xF, 8},     // TEMP
+    {0x2, 4},     // FAN
+    {0xF, 16}     // SWING
+};
+
+const tCrc smsgCrc = { 4, 8 };
+
 /*
  * typedef struct {
  *   uint16_t * protoFieldArr;          // Массив полей заголовка
+ *   uint16_t * protoFieldArr0;         // Массив полей НАЧАЛЬНОГО заголовка
+ *   const tParamPos * paramPos;
+ *   const tCrc * crc;
  *   uint8_t markDur;                   // Длительность маркера (импульса)
  *   uint8_t space0Dur;                 // Длительность паузы "0"
  *   uint8_t space1Dur;                 // Длительность паузы "1"
@@ -70,16 +114,18 @@ tFieldArr smsgProtoField[5] = {
  */
 // Описание протоколов
 tProtoDesc protoDesc[PROTO_NUM] = {
-    {anikProtoField, 25, 21, 61, 0},       // Протокол AERONIK
-    {smsgProtoField, 18, 18, 180, 0},      // Протокол SAMSUNG
-    {NULL, 0, 0, 0, 0},                    // Протокол Daikin
-    {NULL, 0, 0, 0, 0},                    // Протокол Panasonic
-    {NULL, 0, 0, 0, 0},                    // Протокол Mitsubishi
-    {NULL, 0, 0, 0, 0},                    // Протокол Fidji
-    {NULL, 0, 0, 0, 0},          // Протокол Haier
-    {&newProtoField, 0, 0, 0, 0},          // Новый протокол
+    {anikProtoField, &anikPkt0, anikParams, &anikCrc, 25, 21, 61, 0},       // Протокол AERONIK
+    {smsgProtoField, &smsgPkt0, smsgParams, &smsgCrc, 18, 18, 180, 0},      // Протокол SAMSUNG
+    {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Daikin
+    {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Panasonic
+    {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Mitsubishi
+    {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Fidji
+    {NULL, NULL, NULL, NULL, 0, 0, 0, 0},          // Протокол Haier
+    {&newProtoField, NULL, NULL, NULL, 0, 0, 0, 0},          // Новый протокол
 };
 
+
+/*################################################################################################*/
 
 // Декодирование принятого поля
 uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len ){
@@ -171,4 +217,158 @@ int8_t areaFind( tFieldArr * pFldArr, uint8_t *idx ){
     *idx -= pFldArr->fieldLen;
   }
   return areaNum;
+}
+
+
+// Кодирование отправляемого ИК-пакета для Определенного протокола
+uint8_t protoDefCod( tProtoDesc * prDesc ){
+  uint8_t rec = 0;
+  int8_t areaNum;
+  uint8_t i;
+  uint8_t bitIdx = 0;
+
+  tFieldArr * pField = prDesc->protoFieldArr;
+
+  // Заполняем поле данных пакета
+  for( i = 0; i < prDesc->protoFieldArr0->len; i++ ){
+    irPktArr[i] = prDesc->protoFieldArr0->arr[i];
+  }
+  for( ; i < 8; i++ ){
+    irPktArr[i] = 0;
+  }
+
+  // Формируем массив данных - параметров
+  protoDefParamSet( irPktArr, prDesc->paramPos );
+
+
+  // Формируем Массив сырых данных ( длительностей импульсов и пауз ) пакета
+
+  for( i = 0; i < 255; i++ ) {
+    uint8_t pi = i;
+    areaNum = areaFind( pField, &pi);
+    if( areaNum < 0){
+      // Массив заполнен
+      break;
+    }
+    if( pField[areaNum].fieldType == FTYPE_DUR ){
+      irPkt[i] = pField[areaNum].field[pi];
+    }
+    else {
+      // Перобразуем битовую кодировку в длительности импульсов и пауз
+      if( (i & 0x1) == 0 ){
+        // Импульс (Марка)
+        irPkt[i] = prDesc->markDur;
+      }
+      else if( (irPktArr[bitIdx/16] & (1 << (bitIdx % 16)) ) == 0){
+        // Пауза бита "1"
+        irPkt[i] = prDesc->space1Dur;
+        bitIdx++;
+        }
+      else {
+        // Пауза бита "0"
+        irPkt[i] = prDesc->space1Dur;
+        bitIdx++;
+      }
+    }
+  }
+
+
+  return rec;
+}
+
+
+
+// Установка параметров для Определенного
+void protoDefParamSet( uint16_t * arr, const tParamPos * pprm ){
+  uint8_t value;
+  uint16_t * arrn;
+  uint8_t i;
+
+  for( i = 0; i < 6; i++ ){
+    value = acParamValue( i );
+    arrn = arr + (pprm[i].pos/ 16);
+    *arrn = (*arrn & ~(pprm[i].mask << (pprm[i].pos % 16))) | (value << (pprm[i].pos % 16));
+  }
+}
+
+/* Расчет контрольной суммы для поля данных
+ * arr - массив данных
+ * mod - длина CRC в битах
+ * len - длина расчитываемых данных в длинах "mod":
+ * Например: Длина arr - 32бита, mod - 8бит, следовательно, len = 4
+ */
+uint8_t crcCod( uint16_t * arr, uint8_t len, uint8_t mod ){
+  uint8_t crc = 0;
+  uint8_t mask = 0;
+
+  mask = (1 << mod) - 1;
+
+  for( uint8_t i = 0; i < len; i++){
+    crc += (arr[ i * mod / 16] >> ( (i * mod) % 16) ) & mask;
+  }
+  while( crc > 0xf ){
+    crc = (crc & 0xf) + ((crc & 0xf0) >> 4);
+  }
+
+  return crc;
+}
+
+void protoNonDefCod( void ){
+  // Сначала копируем НАЧАЛЬНЫЙ пакет в массив полей для отправки
+  for( uint8_t i = 0; i < irRxIndex; i++ ){
+    irPkt[i] = ir0Pkt[i];
+  }
+  // Теперь переписываем поля в соответсвии с параметрами
+  for( eParam i = PARAM_ONOFF; i <= PARAM_SWING; i++ ){
+    uint8_t value;
+    uint8_t sellNum;
+
+    value = acParamValue( i );
+    sellNum = paramfieldBegin[i] + value;
+
+    // Перебираем отличия в полях
+    for( uint8_t j = 0; j < rxFieldQuant[sellNum]; j++) {
+      // Есть отличия в полях
+      irPkt[ (pIrField[sellNum])[j].fieldNum ] = (pIrField[sellNum])[j].fieldDur;
+    }
+
+  }
+}
+
+// Возвращает значение параметра
+uint8_t acParamValue( uint8_t param ){
+  uint8_t value;
+
+  switch( param ){
+    case   PARAM_ONOFF:
+      value = acData.onoff;
+      break;
+    case   PARAM_MODE:
+      value = acData.mode;
+      break;
+    case   PARAM_TEMP:
+      value = acData.temp;
+      break;
+    case   PARAM_FAN:
+      value = acData.fan;
+      break;
+    case   PARAM_SWING:
+      value = acData.swing;
+      break;
+    case PARAM_CRC:
+      if(protoName != PROTO_NONAME ){
+        const tCrc * crc = protoDesc[protoName].crc;
+        // Только для определенного протокола - Высчитываем CRC
+        value = crcCod( irPktArr, crc->len, crc->mod );
+      }
+      else {
+        value = 0;
+      }
+      break;
+    default:
+      value = 0;
+      break;
+  }
+
+  return value;
 }

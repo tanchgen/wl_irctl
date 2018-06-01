@@ -276,12 +276,12 @@ static inline void dioInit( void ){
 
   //---- Инициализация выводов для DIO0 - DIO5 RFM69: вход, 2МГц, без подтяжки
 
-  //Dio0 - PA0, Dio1 - PA1, Dio2 - PA2, Dio3 - PA3, Dio4 - PA6
-  GPIOA->OTYPER &= ~(GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_6);
-  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (2 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) )) |
-        (0x1 | (0x1 << (1 * 2)) | (0x1 << (2 * 2)) | (0x1 << (3 * 2)) | (0x1 << (6 * 2)) );
-  GPIOA->PUPDR &= ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (2 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) );
-  GPIOA->MODER &= ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (2 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) );
+  //Dio0 - PA0, Dio1 - PA1, Dio2 - PA8, Dio3 - PA3, Dio4 - PA6
+  GPIOA->OTYPER &= ~(GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_8 | GPIO_Pin_3 | GPIO_Pin_6);
+  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (8 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) )) |
+        (0x1 | (0x1 << (1 * 2)) | (0x1 << (8 * 2)) | (0x1 << (3 * 2)) | (0x1 << (6 * 2)) );
+  GPIOA->PUPDR &= ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (8 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) );
+  GPIOA->MODER &= ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (8 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) );
 
   // Dio5 - PB2
   GPIOB->OTYPER &= ~(GPIO_Pin_2);
