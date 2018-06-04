@@ -249,49 +249,23 @@ void TIM6_IRQHandler( void ){
 
 // Обработчик прерывания таймера несущей (38кГц) ИК-передатчика
 void TIM21_IRQHandler( void ){
-////  IR_TX_PORT->BRR ^= IR_TX_PIN;
-//  if( pulseLen == 0 ){
-//    // Пульс закончен - выключаем пин
-//    IR_TX_PORT->BSRR |= IR_TX_PIN;
-//    if( txFieldCount++ > field0Num ){
-//      // Все поля пакета переданы - все выключаем
-//      TIM21->CR1 &= TIM_CR1_CEN;
-//    }
-//    else {
-//      pulseLen = 0x19;
-//      //  pulseLen = irPkt[txFieldCount++];
-//      pausePulse = !pausePulse;
-//    }
-//  }
-//  else if( TIM21->SR & TIM_SR_UIF ){
-//    if( pausePulse == ON ){
-//      // Пин вверх - растущий фронт импульса
-//      IR_TX_PORT->BRR |= IR_TX_PIN;
-//    }
-////    IR_TX_PORT->BRR |= IR_TX_PIN;
-//    TIM21->SR &= ~(TIM_SR_UIF);
-//  }
-//  else if( TIM21->SR & TIM_SR_CC1IF ){
-//    pulseLen--;
-//    // Пин вниз - падающий фронт импульса
-//    IR_TX_PORT->BSRR |= IR_TX_PIN;
-//    TIM21->SR &= ~(TIM_SR_CC1IF);
-//  }
 }
 
 // Обработчик прерывания таймера модуляции (длительность импульсов и пауз) ИК-передатчика
 void TIM22_IRQHandler( void ){
   TIM22->SR &= ~TIM_SR_UIF;
   if( txFlag != OFF ){
-    if( TIM22->SR & TIM_SR_UIF){
-      IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
-      TIM22->SR &= ~TIM_SR_UIF;
-    }
-    else if( TIM22->SR & TIM_SR_CC1IF){
+//    if( TIM22->SR & TIM_SR_UIF){
+//      IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
+//      TIM22->SR &= ~TIM_SR_UIF;
+//    }
+//    else
+      if( TIM22->SR & TIM_SR_CC1IF){
       // Пульс закончился
       if( txFieldCount++ > field0Num ){
         // Передача закончена - все выключаем
         TIM22->CR1 &= ~TIM_CR1_CEN;
+        IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
         txFlag = !txFlag;
       }
       TIM22->SR &= ~TIM_SR_CC1IF;

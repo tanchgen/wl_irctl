@@ -78,88 +78,58 @@ int main(int argc, char* argv[])
   EXTI->IMR |= IR_RX_PIN;
 
 
-  DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM21_STOP | DBGMCU_APB2_FZ_DBG_TIM22_STOP;
-  irCarierTimInit();
-
-  txFieldCount = 0;
-  field0Num = 254;
-
-
-  // Альтернативная функция AF0 - TIM21_CH1
-  RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
-  TIM21->CR1 |= TIM_CR1_CEN;
-  TIM21->EGR |= TIM_EGR_UG;
-
-  // Включакм тактирование таймера
-  RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
-  // TODO: Настроить отключение таймера в режиме STOP и востановление его по потребности
-
-  // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
-  TIM22->PSC = (110)-1;
-  // Перезагрузка по истечение 100мс
-  TIM22->ARR = 0x19 * 2;
-  TIM22->CCR1 = 0x19;
-
-  TIM22->DIER &= ~TIM_DIER_UIE;
-  // OC1REF - как TGRO
-  TIM22->CR2 |= TIM_CR2_MMS_2;
-  // PWM1
-  TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0) | TIM_CCMR1_OC1PE;
-  TIM22->SR = 0;
-//  // Прерывание по переполнению
-  TIM22->DIER |= TIM_DIER_CC1IE;
-//  // Конфигурация NVIC для прерывания по таймеру TIM6
-  NVIC_EnableIRQ( TIM22_IRQn );
-  NVIC_SetPriority( TIM22_IRQn, 1 );
-  txFlag = ON;
-
-  IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
-  TIM22->CR1 |= TIM_CR1_CEN;
-  TIM22->EGR = TIM_EGR_UG;
-
-  while(1)
-  {}
-
-//  while(1){
-//    // Надо отправить массив полей длиной = txFieldCount + 1
-//    txFieldCount = 0;
-//    field0Num = 255;
 //
-//    // Запуск
-//    // Включаем тактирование таймера несущей
-//    RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
-//    TIM21->DIER &= ~TIM_DIER_UIE;
-//    TIM21->EGR |= TIM_EGR_UG;
-//    TIM21->SR &= ~TIM_SR_UIF;
-//    TIM21->DIER |= TIM_DIER_UIE;
-//    // Пин -> ВНИЗ
-//    IR_TX_PORT->BRR |= IR_TX_PIN;
-//    pulseLen = 0x19;
-//    pausePulse = ON;
-//    //  pulseLen = irPkt[txFieldCount++];
-//    TIM21->CR1 |= TIM_CR1_CEN;
+//  // #################### ТЕСТИРОВАНИЕ ПЕРЕДАЧИ ПАКЕТА ##############################
+//  while(0){
+//    irCarierTimInit();
 //
-//    // Ждем, пока передача не закончится
-//    while( TIM21->CR1 & TIM_CR1_CEN )
+//    // Ждем пока кнопка НЕ ОТЖАТА
+//    while( btn.stat == BTN_ON )
 //    {}
+//    txFieldCount = 0;
+//    field0Num = 254;
 //
-//    // Выключаем тактирование таймера модулирующей
-//    RCC->APB2ENR &= ~RCC_APB2ENR_TIM21EN;
+//
+//    // Альтернативная функция AF0 - TIM21_CH1
+//    RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
+//    TIM21->CR1 |= TIM_CR1_CEN;
+//    TIM21->EGR |= TIM_EGR_UG;
+//
+//    // Включакм тактирование таймера
+//    RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
+//    // TODO: Настроить отключение таймера в режиме STOP и востановление его по потребности
+//
+//    // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
+//    TIM22->PSC = (110)-1;
+//    // Перезагрузка по истечение 100мс
+//    TIM22->ARR = 0x19 * 2 - 1;
+//    TIM22->CCR1 = 0x19;
+//
+//    TIM22->DIER &= ~TIM_DIER_UIE;
+//    // OC1REF - как TGRO
+//    TIM22->CR2 |= TIM_CR2_MMS_2;
+//    // PWM2
+//    TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0) | TIM_CCMR1_OC1PE;
+//    TIM22->SR = 0;
+//  //  // Прерывание по переполнению
+//    TIM22->DIER |= TIM_DIER_CC1IE;
+//  //  // Конфигурация NVIC для прерывания по таймеру TIM22
+//    NVIC_EnableIRQ( TIM22_IRQn );
+//    NVIC_SetPriority( TIM22_IRQn, 1 );
+//    txFlag = ON;
+//
+//    IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
+//    TIM22->CR1 |= TIM_CR1_CEN;
+//    TIM22->EGR = TIM_EGR_UG;
+//
+//    // Ждем пока кнопка НЕ НАЖАТА
+//    while( btn.stat == BTN_OFF )
+//    {}
 //  }
-// ===================================================================
-
-//  while( (IR_RX_PORT->IDR & IR_RX_PIN) == 0)
+//
+//  while(0)
 //  {}
 //
-//  while(1){
-//
-//    while( (IR_RX_PORT->IDR & IR_RX_PIN) != 0)
-//    {}
-//    failCount++;
-//    while( (IR_RX_PORT->IDR & IR_RX_PIN) == 0)
-//    {}
-//    risCount++;
-//  }
 
   // Засыпаем до нажатия на кнопку
   while( btn.tOnSec == 0 ) {
