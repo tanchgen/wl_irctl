@@ -15,6 +15,8 @@
 #include "button.h"
 #include "process.h"
 
+extern volatile uint8_t wutCnt;
+
 volatile uint8_t csmaCount = 0;
 tUxTime sendTryStopTime;
 static uint8_t msgNum;      // Порядковый номер отправляемого пакета

@@ -77,6 +77,7 @@ void irRxInit( void );
 void irRxProcess( void );
 uint8_t learnProcess( void );
 void learnReset( void );
+void irModulLearnTimInit( void );
 void irModulTimInit( void );
 uint8_t irPktSend( void );
 void irCarierTimInit( void );         // Инициализация таймена несущей ИК-передачи

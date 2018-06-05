@@ -83,6 +83,8 @@ void buttonProcess( uint32_t ut ){
 //    }
     // Включаем обработку входа ИК-приемника
     EXTI->IMR |= IR_RX_PIN;
+    // Включакм тактирование таймера модулирующей
+     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
 
   }
   else {
