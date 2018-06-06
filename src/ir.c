@@ -138,9 +138,9 @@ void irModulTxTimInit( void ){
    // TODO: Настроить отключение таймера в режиме STOP и востановление его по потребности
 
    // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
-   TIM2->PSC = (110)-1;
+   TIM22->PSC = (110)-1;
 
-   // OC1REF - как TGRO для Таймера несущей (TIM21)
+   // OC1REF - как TGRO
    TIM22->CR2 |= TIM_CR2_MMS_2;
    // PWM2
    TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1) | TIM_CCMR1_OC1PE;
@@ -206,7 +206,7 @@ void irRxInit( void ){
 }
 
 void irRxProcess( void ){
-  uint16_t c = TIM22->CNT;
+  uint16_t c = TIM2->CNT;
 
   rxEdgeCnt++;
 
@@ -222,11 +222,11 @@ void irRxProcess( void ){
     *(pIrPkt + irRxIndex++) = c;
   }
   else if( c == 0){
-    TIM22->CR1 |= TIM_CR1_CEN;
+    TIM2->CR1 |= TIM_CR1_CEN;
     EXTI->RTSR |= IR_RX_PIN;
   }
   // Сбрасываем счетчик
-  TIM22->CNT = 0x0;
+  TIM2->CNT = 0x0;
 }
 
 uint8_t learnProcess( void ){
@@ -419,48 +419,36 @@ void learnReset( void ){
 
 uint8_t irPktSend( void ){
 
-  // Надо отправить массив полей длиной = txFieldCount + 1
-  txFieldCount = 0;
-
-
-  // Вдруг нажата кнопка - момент обучения -> выходим с ошибкой
-  if( btn.stat == BTN_ON ){
+  if(field0Num == 0){
+    // Еще не прошел обучение - неизвестно, что отправлять
     return 1;
   }
-  // Включакм тактирование таймера модулирующей
-   RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
 
-  // Записываем длительность поля (импульс или пауза) в таймер
-  TIM22->ARR = irPkt[txFieldCount++];
-  // Обратный отсчет
-  TIM22->CR1 |= TIM_CR1_DIR;
-  // Запуск
-  // Пин -> ВНИЗ
-  IR_TX_PORT->BRR |= IR_TX_PIN;
+  txFieldCount = 0;
 
-  // Включаем тактирование таймера несущей
-   RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
-  // Запускем таймер несущей
+  // Включаем тактирование таймера несущей и запускаем его
+  RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
   TIM21->CR1 |= TIM_CR1_CEN;
 
-  // Запускем таймер модулирующей
+  // Включаем тактирование таймера модулирующей
+  RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
+
+  // Заполняем длительности полей рульса и паузы
+  uint16_t tmp;
+  // Заполняем поле пульса
+  TIM22->CCR1 = irPkt[txFieldCount++];
+  // Заполняем поле паузы (Пауза = ARR - "пульс")
+  tmp = TIM22->CCR1;
+  if( txFieldCount < field0Num){
+   tmp += irPkt[txFieldCount++];
+  }
+  TIM22->ARR = tmp;
+
+  // Включаем вывод таймера на пин порта
+  IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
+  // Запускаем таймер модулирующей
   TIM22->CR1 |= TIM_CR1_CEN;
-
-  // Выключаем засыпание по выходу из прерывания до окончания отправки пакета по ИК-каналу
-  uint32_t tmp = SCB->SCR;
-  // Сохраняем засыпание по выходу из прерывания
-  SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
-  // Ждем, пока передача не закончится
-  while( TIM22->CR1 & TIM_CR1_CEN )
-  {}
-
-  // Восстанавливаем прямой отсчет
-  TIM22->CR1 &= ~TIM_CR1_DIR;
-  // Выключаем тактирование таймера модулирующей
-   RCC->APB2ENR &= ~RCC_APB2ENR_TIM21EN;
-
-  // Восстанавливаем засыпание по выходу из прерывания
-  SCB->SCR = tmp;
+  TIM22->EGR = TIM_EGR_UG;
 
   return 0;
 }

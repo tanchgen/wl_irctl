@@ -260,12 +260,12 @@ uint8_t protoDefCod( tProtoDesc * prDesc ){
         irPkt[i] = prDesc->markDur;
       }
       else if( (irPktArr[bitIdx/16] & (1 << (bitIdx % 16)) ) == 0){
-        // Пауза бита "1"
-        irPkt[i] = prDesc->space1Dur;
+        // Пауза бита "0"
+        irPkt[i] = prDesc->space0Dur;
         bitIdx++;
         }
       else {
-        // Пауза бита "0"
+        // Пауза бита "1"
         irPkt[i] = prDesc->space1Dur;
         bitIdx++;
       }

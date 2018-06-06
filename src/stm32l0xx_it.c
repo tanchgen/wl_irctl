@@ -22,7 +22,6 @@ uint8_t rssiVol;    //
 //#endif
 
 /* External variables --------------------------------------------------------*/
-extern uint8_t txFlag;
 
 extern volatile uint8_t csmaCount;
 
@@ -284,6 +283,7 @@ void TIM22_IRQHandler( void ){
 
 void TIM2_IRQHandler( void ){
   TIM2->SR &= ~TIM_SR_UIF;
+  TIM2->CR1 &= ~TIM_CR1_CEN;
 
   // Примой счет - прием (обучение)
   // Длительность паузы более 100мс -> пакет принят.
@@ -296,6 +296,8 @@ void TIM2_IRQHandler( void ){
         // Протокол известен - конец обучению
         mDelay(125);
         buzzerLongPulse();
+        onOffFlag = ON;
+        field0Num = irRxIndex;
       }
     }
     irRxGetFlag = SET;
