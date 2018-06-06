@@ -253,59 +253,58 @@ void TIM21_IRQHandler( void ){
 
 // Обработчик прерывания таймера модуляции (длительность импульсов и пауз) ИК-передатчика
 void TIM22_IRQHandler( void ){
-  if( txFlag != OFF ){
 
-    GPIOA->ODR ^= GPIO_Pin_11;
-
-    if( TIM22->SR & TIM_SR_UIF){
+  if( TIM22->SR & TIM_SR_UIF){
+    GPIOA->BRR |= GPIO_Pin_11;
 //      IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
 
-      uint16_t tmp;
-      // Заполняем поле пульса
-      TIM22->CCR1 = irPkt[txFieldCount++];
-      // Заполняем поле паузы (Пауза = ARR - "пульс")
-      tmp = TIM22->CCR1;
-      if( txFieldCount < field0Num){
-        tmp += irPkt[txFieldCount++];
-      }
-      TIM22->ARR = tmp;
+    uint16_t tmp;
+    // Заполняем поле пульса
+    TIM22->CCR1 = irPkt[txFieldCount++];
+    // Заполняем поле паузы (Пауза = ARR - "пульс")
+    tmp = TIM22->CCR1;
+    if( txFieldCount < field0Num){
+      tmp += irPkt[txFieldCount++];
+    }
+    TIM22->ARR = tmp;
 
-      TIM22->SR &= ~TIM_SR_UIF;
-    }
-    else if( TIM22->SR & TIM_SR_CC1IF){
-      // Пульс закончился
-      if( txFieldCount >= field0Num ){
-        // Передача закончена - все выключаем
-        TIM22->CR1 &= ~TIM_CR1_CEN;
-        IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
-        txFlag = !txFlag;
-      }
-      TIM22->SR &= ~TIM_SR_CC1IF;
-    }
-  }
-  else {
     TIM22->SR &= ~TIM_SR_UIF;
-
-    // Примой счет - прием (обучение)
-    // Длительность паузы более 100мс -> пакет принят.
-//    buzzerShortPulse();
-    // Обнуляем счетчик импульсов и пауз
-    if( irRxIndex > 0 ){
-      if( protoName == PROTO_NONAME ){
-        protoName = learnProcess();
-        if( protoName != PROTO_NONAME ){
-          // Протокол известен - конец обучению
-          mDelay(125);
-          buzzerLongPulse();
-        }
-      }
-      irRxGetFlag = SET;
-      irRxIndex = 0;
+  }
+  else if( TIM22->SR & TIM_SR_CC1IF){
+    GPIOA->BSRR |= GPIO_Pin_11;
+    // Пульс закончился
+    if( txFieldCount >= field0Num ){
+      // Передача закончена - все выключаем
+      TIM22->CR1 &= ~TIM_CR1_CEN;
+      IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
     }
-    // Включаем маску внешнего прерывания от ИК-приемника
-    EXTI->IMR &= ~IR_RX_PIN;
-    // Выждем паузу 250мс до ожидания следующего ИК-пакета
-    state = STAT_IR_RX_STOP;
-    wutSet(250000);
+    TIM22->SR &= ~TIM_SR_CC1IF;
   }
 }
+
+void TIM2_IRQHandler( void ){
+  TIM2->SR &= ~TIM_SR_UIF;
+
+  // Примой счет - прием (обучение)
+  // Длительность паузы более 100мс -> пакет принят.
+//    buzzerShortPulse();
+  // Обнуляем счетчик импульсов и пауз
+  if( irRxIndex > 0 ){
+    if( protoName == PROTO_NONAME ){
+      protoName = learnProcess();
+      if( protoName != PROTO_NONAME ){
+        // Протокол известен - конец обучению
+        mDelay(125);
+        buzzerLongPulse();
+      }
+    }
+    irRxGetFlag = SET;
+    irRxIndex = 0;
+  }
+  // Включаем маску внешнего прерывания от ИК-приемника
+  EXTI->IMR &= ~IR_RX_PIN;
+  // Выждем паузу 250мс до ожидания следующего ИК-пакета
+  state = STAT_IR_RX_STOP;
+  wutSet(250000);
+}
+

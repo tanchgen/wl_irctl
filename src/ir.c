@@ -98,35 +98,68 @@ void irCarierTimInit( void ){
 //    RCC->APB2ENR &= ~RCC_APB2ENR_TIM21EN;
 }
 
-// Инициализация таймера модуляции ИК-сигнала TIM22
+// Инициализация таймера модуляции ИК-сигнала TIM2 для обучения
 // Таймер подсчитывает длительности имульсов и пауз взодящего/исходящего сигнала в ед. 10мкс
 // При приеме (обучении) счетаем в прямом направлении, при передаче - обратный отсчет.
-void irModulTimInit( void ){
+void irModulLearnTimInit( void ){
+
+  // Включакм тактирование таймера
+   RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+   // TODO: Настроить отключение таймера в режиме STOP и востановление его по потребности
+
+   // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
+   TIM2->PSC = (110)-1;
+   // Перезагрузка по истечение 100мс
+   TIM2->ARR = 1480;
+   TIM2->CR1 |= TIM_CR1_CEN;
+   TIM2->EGR = TIM_EGR_UG;
+
+   // Ждем, пока обновится счетчик
+   while( (TIM2->SR & TIM_SR_UIF) == 0 )
+   {}
+   TIM2->CR1 &= ~TIM_CR1_CEN;
+   TIM2->CNT = 0;
+   TIM2->SR &= ~TIM_SR_UIF;
+   // Прерывание по переполнению
+   TIM2->DIER |= TIM_DIER_UIE;
+   // Конфигурация NVIC для прерывания по таймеру TIM6
+   NVIC_EnableIRQ( TIM2_IRQn );
+   NVIC_SetPriority( TIM2_IRQn, 1 );
+
+}
+
+// Инициализация таймера модуляции ИК-сигнала TIM22 для передачи
+// Таймер подсчитывает длительности имульсов и пауз взодящего/исходящего сигнала в ед. 10мкс
+// При приеме (обучении) счетаем в прямом направлении, при передаче - обратный отсчет.
+void irModulTxTimInit( void ){
 
   // Включакм тактирование таймера
    RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
    // TODO: Настроить отключение таймера в режиме STOP и востановление его по потребности
 
    // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
-   TIM22->PSC = (110)-1;
-   // Перезагрузка по истечение 100мс
-   TIM22->ARR = 1480;
-   TIM22->CR1 |= TIM_CR1_CEN;
-   TIM22->EGR = TIM_EGR_UG;
+   TIM2->PSC = (110)-1;
 
-   // Ждем, пока обновится счетчик
-   while( (TIM22->SR & TIM_SR_UIF) == 0 )
-   {}
-   TIM22->CR1 &= ~TIM_CR1_CEN;
-   TIM22->CNT = 0;
-   TIM22->SR &= ~TIM_SR_UIF;
-   // Прерывание по переполнению
-   TIM22->DIER |= TIM_DIER_UIE;
-   // Конфигурация NVIC для прерывания по таймеру TIM6
+   // OC1REF - как TGRO для Таймера несущей (TIM21)
+   TIM22->CR2 |= TIM_CR2_MMS_2;
+   // PWM2
+   TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1) | TIM_CCMR1_OC1PE;
+//    TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0) | TIM_CCMR1_OC1PE;
+   TIM22->CR1 |= TIM_CR1_ARPE;
+
+//   TIM22->EGR = TIM_EGR_UG;
+//   // Ждем, пока обновится счетчик
+//   while( (TIM22->SR & TIM_SR_UIF) == 0 )
+//   {}
+//   TIM22->SR &= ~TIM_SR_UIF;
+//
+   //  // Прерывание по переполнению
+   TIM22->DIER |= TIM_DIER_CC1IE | TIM_DIER_UIE;
+   //  // Конфигурация NVIC для прерывания по таймеру TIM22
    NVIC_EnableIRQ( TIM22_IRQn );
    NVIC_SetPriority( TIM22_IRQn, 1 );
-
 }
+
 
 void irRxInit( void ){
   // Инициализация пина
@@ -153,8 +186,10 @@ void irRxInit( void ){
   NVIC_EnableIRQ( IR_RX_EXTI_IRQn );
   NVIC_SetPriority( IR_RX_EXTI_IRQn, 1 );
 
-  // Инициализация таймера Модулирующего сигнала
-  irModulTimInit();
+  // Инициализация таймера Модулирующего сигнала для ОБУЧЕНИЯ
+  irModulLearnTimInit();
+  // Инициализация таймера Модулирующего сигнала для ПЕРЕДАЧИ
+  irModulTxTimInit();
 
   rxStat = RX_STAT_0;
   pIrPkt = ir0Pkt;
@@ -175,7 +210,7 @@ void irRxProcess( void ){
 
   rxEdgeCnt++;
 
-  GPIOA->ODR ^= GPIO_Pin_11;
+//  GPIOA->ODR ^= GPIO_Pin_11;
 
 //  if( (irRxIndex != 0) || ((IR_RX_PORT->IDR & IR_RX_PIN) == 0) ){
     // Начало пакета - запускаем счет таймера модуляции
