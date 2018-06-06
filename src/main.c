@@ -78,58 +78,59 @@ int main(int argc, char* argv[])
   EXTI->IMR |= IR_RX_PIN;
 
 
-//
-//  // #################### ТЕСТИРОВАНИЕ ПЕРЕДАЧИ ПАКЕТА ##############################
-//  while(0){
-//    irCarierTimInit();
-//
-//    // Ждем пока кнопка НЕ ОТЖАТА
-//    while( btn.stat == BTN_ON )
-//    {}
-//    txFieldCount = 0;
-//    field0Num = 254;
-//
-//
-//    // Альтернативная функция AF0 - TIM21_CH1
-//    RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
-//    TIM21->CR1 |= TIM_CR1_CEN;
-//    TIM21->EGR |= TIM_EGR_UG;
-//
-//    // Включакм тактирование таймера
-//    RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
-//    // TODO: Настроить отключение таймера в режиме STOP и востановление его по потребности
-//
-//    // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
-//    TIM22->PSC = (110)-1;
-//    // Перезагрузка по истечение 100мс
-//    TIM22->ARR = 0x19 * 2 - 1;
-//    TIM22->CCR1 = 0x19;
-//
-//    TIM22->DIER &= ~TIM_DIER_UIE;
-//    // OC1REF - как TGRO
-//    TIM22->CR2 |= TIM_CR2_MMS_2;
-//    // PWM2
+
+  // #################### ТЕСТИРОВАНИЕ ПЕРЕДАЧИ ПАКЕТА ##############################
+  while(1){
+    irCarierTimInit();
+
+    // Ждем пока кнопка НЕ ОТЖАТА
+    while( btn.stat == BTN_ON )
+    {}
+    txFieldCount = 0;
+    field0Num = 10;
+
+
+    // Альтернативная функция AF0 - TIM21_CH1
+    RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
+    TIM21->CR1 |= TIM_CR1_CEN;
+    TIM21->EGR |= TIM_EGR_UG;
+
+    // Включакм тактирование таймера
+    RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
+    // TODO: Настроить отключение таймера в режиме STOP и востановление его по потребности
+
+    // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
+    TIM22->PSC = (110)-1;
+    // Перезагрузка по истечение 100мс
+    TIM22->ARR = 0x19 * 2 - 1;
+    TIM22->CCR1 = 0x19;
+
+    TIM22->DIER &= ~TIM_DIER_UIE;
+    // OC1REF - как TGRO
+    TIM22->CR2 |= TIM_CR2_MMS_2;
+    // PWM2
+    TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1) | TIM_CCMR1_OC1PE;
 //    TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0) | TIM_CCMR1_OC1PE;
-//    TIM22->SR = 0;
-//  //  // Прерывание по переполнению
-//    TIM22->DIER |= TIM_DIER_CC1IE;
-//  //  // Конфигурация NVIC для прерывания по таймеру TIM22
-//    NVIC_EnableIRQ( TIM22_IRQn );
-//    NVIC_SetPriority( TIM22_IRQn, 1 );
-//    txFlag = ON;
-//
-//    IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
-//    TIM22->CR1 |= TIM_CR1_CEN;
-//    TIM22->EGR = TIM_EGR_UG;
-//
-//    // Ждем пока кнопка НЕ НАЖАТА
-//    while( btn.stat == BTN_OFF )
-//    {}
-//  }
-//
-//  while(0)
-//  {}
-//
+    TIM22->SR = 0;
+  //  // Прерывание по переполнению
+    TIM22->DIER |= TIM_DIER_CC1IE;
+  //  // Конфигурация NVIC для прерывания по таймеру TIM22
+    NVIC_EnableIRQ( TIM22_IRQn );
+    NVIC_SetPriority( TIM22_IRQn, 1 );
+    txFlag = ON;
+
+    IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
+    TIM22->CR1 |= TIM_CR1_CEN;
+    TIM22->EGR = TIM_EGR_UG;
+
+    // Ждем пока кнопка НЕ НАЖАТА
+    while( btn.stat == BTN_OFF )
+    {}
+  }
+
+  while(1)
+  {}
+
 
   // Засыпаем до нажатия на кнопку
   while( btn.tOnSec == 0 ) {
