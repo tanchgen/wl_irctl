@@ -160,13 +160,13 @@ void irRxInit( void ){
   pIrPkt = ir0Pkt;
 
   // =========== Для тестирования =====================
-  // PA12 на вывод данных
+  // PA11 на вывод данных
   //---- Инициализация выхода для: Выход, 2МГц, без подтяжки ---
-  GPIOA->OTYPER &= ~(GPIO_Pin_12);
-  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 << (12 * 2))) | (0x1 << (12 * 2));
-  GPIOA->PUPDR = (GPIOA->PUPDR & ~(0x3 << (12 * 2)));
-  GPIOA->MODER = (GPIOA->MODER & ~(0x3<< (12 * 2))) | (0x1 << (12 * 2));
-  GPIOA->BSRR |= GPIO_Pin_12;
+  GPIOA->OTYPER &= ~(GPIO_Pin_11);
+  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 << (11 * 2))) | (0x1 << (11 * 2));
+  GPIOA->PUPDR = (GPIOA->PUPDR & ~(0x3 << (11 * 2)));
+  GPIOA->MODER = (GPIOA->MODER & ~(0x3<< (11 * 2))) | (0x1 << (11 * 2));
+  GPIOA->BSRR |= GPIO_Pin_11;
 
 }
 
@@ -175,7 +175,7 @@ void irRxProcess( void ){
 
   rxEdgeCnt++;
 
-  GPIOA->ODR ^= GPIO_Pin_12;
+  GPIOA->ODR ^= GPIO_Pin_11;
 
 //  if( (irRxIndex != 0) || ((IR_RX_PORT->IDR & IR_RX_PIN) == 0) ){
     // Начало пакета - запускаем счет таймера модуляции
@@ -430,3 +430,122 @@ uint8_t irPktSend( void ){
   return 0;
 }
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
+//uint8_t irPktSend( void ){
+//
+//  if(field0Num == 0){
+//    // Последовательность полей длительностей НАЧАЛЬНОГО пакета не заполнена - выходим
+//    return 1;
+//  }
+//
+//  // Включаем тактирование таймера несущей
+//   RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
+//  // Запускем таймер несущей
+//  TIM21->CR1 |= TIM_CR1_CEN;
+//  TIM21->EGR |= TIM_EGR_UG;
+//
+//  // Выключаем засыпание по выходу из прерывания до окончания отправки пакета по ИК-каналу
+//  uint32_t tmp = SCB->SCR;
+//  // Сохраняем засыпание по выходу из прерывания
+//  SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+//
+//
+//  // Включакм тактирование таймера модулирующей
+//   RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
+//
+//   // Длительности: начнем последовательность с первого поля
+//   txFieldCount = 0;
+//
+//  // -------------- НАЧИНАЕМ ПЕРЕДАЧУ --------------------------
+//  // Переключаем пин на Таймер модулирующей
+//  IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
+//
+//  // Заполняем поле пульса
+////  TIM22->CCR1 = 0x159;
+////  TIM22->ARR = 0xAA + 0x159;
+////  txFieldCount = 0;
+////  TIM22->CCR1 = irPkt[txFieldCount++];
+////  // Заполняем поле паузы (Пауза = ARR - "пульс")
+////  tmp = TIM22->CCR1;
+////  if( txFieldCount < field0Num){
+////    tmp += irPkt[txFieldCount++];
+////  }
+////  TIM22->ARR = tmp;
+//  // Запускем таймер модулирующей
+//  TIM22->CR1 |= TIM_CR1_CEN;
+////  TIM22->SR &= ~(TIM_SR_UIF | TIM_SR_CC1IF);
+//  GPIOA->ODR ^= GPIO_Pin_11;
+//  TIM22->EGR = TIM_EGR_UG;
+//
+//  // Ждем, пока передача не закончится
+//  while( TIM22->CR1 & TIM_CR1_CEN ){
+//// -----------------------------------------------------------
+////    if( TIM22->SR & TIM_SR_UIF){
+////      GPIOA->ODR ^= GPIO_Pin_11;
+////      txFieldCount += 2;
+////      if( txFieldCount >= field0Num ){
+////        // Передача закончена - все выключаем
+////
+////        TIM22->CR1 &= ~TIM_CR1_CEN;
+////        TIM22->ARR = ~0;
+////      }
+////      TIM22->SR &= ~TIM_SR_UIF;
+////    }
+////    else if( TIM22->SR & TIM_SR_CC1IF){
+////      GPIOA->ODR ^= GPIO_Pin_11;
+////      // Пульс закончился
+////      if( txFieldCount >= field0Num ){
+////        // Передача закончена - все выключаем
+////        TIM22->CR1 &= ~TIM_CR1_CEN;
+////        IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
+////        TIM22->CCR1 = 0;
+////        TIM22->ARR = ~0;
+////      }
+////      TIM22->SR &= ~TIM_SR_CC1IF;
+////    }
+//
+////-------------------------------------------------------
+//
+////    if( TIM22->SR & TIM_SR_UIF){
+////      uint16_t tmp;
+////
+////      GPIOA->ODR ^= GPIO_Pin_11;
+////
+////      TIM22->SR &= ~TIM_SR_UIF;
+////      // Заполняем поле пульса
+////      TIM22->CCR1 = irPkt[txFieldCount++];
+////      // Заполняем поле паузы (Пауза = ARR - "пульс")
+////      tmp = TIM22->CCR1;
+////      if( txFieldCount < field0Num){
+////        tmp += irPkt[txFieldCount++];
+////      }
+////      TIM22->ARR = tmp;
+////
+////    }
+////    else if( TIM22->SR & TIM_SR_CC1IF){
+////
+////      GPIOA->ODR ^= GPIO_Pin_11;
+////
+////      // Пульс закончился
+////      if( txFieldCount >= field0Num ){
+////        // Передача закончена - все выключаем
+////        TIM22->CR1 &= ~TIM_CR1_CEN;
+////        IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
+////        TIM22->CCR1 = 0;
+////        TIM22->ARR = ~0;
+////      }
+////      TIM22->SR &= ~TIM_SR_CC1IF;
+////    }
+//  }
+//
+//  // Выключаем тактирование таймера несущей
+//  RCC->APB2ENR &= ~RCC_APB2ENR_TIM21EN;
+//  // Выключаем тактирование таймера модулирующей до следующего использования
+//  RCC->APB2ENR &= ~RCC_APB2ENR_TIM22EN;
+//
+//  // Восстанавливаем засыпание по выходу из прерывания
+//  SCB->SCR = tmp;
+//
+//  return 0;
+//}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

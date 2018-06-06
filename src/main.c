@@ -108,13 +108,11 @@ int main(int argc, char* argv[])
     while( btn.stat == BTN_ON )
     {}
     txFieldCount = 0;
-    field0Num = 10;
-
 
     // Альтернативная функция AF0 - TIM21_CH1
     RCC->APB2ENR |= RCC_APB2ENR_TIM21EN;
     TIM21->CR1 |= TIM_CR1_CEN;
-    TIM21->EGR |= TIM_EGR_UG;
+//    TIM21->EGR |= TIM_EGR_UG;
 
     // Включакм тактирование таймера
     RCC->APB2ENR |= RCC_APB2ENR_TIM22EN;
@@ -122,20 +120,29 @@ int main(int argc, char* argv[])
 
     // Получаем период счета, кратный 38000Гц (несущая частота) ( 4194кГц / 38кГц ) = ~110 :
     TIM22->PSC = (110)-1;
-    // Перезагрузка по истечение 100мс
-    TIM22->ARR = 0x19 * 2 - 1;
-    TIM22->CCR1 = 0x19;
 
-    TIM22->DIER &= ~TIM_DIER_UIE;
+    uint16_t tmp;
+    // Заполняем поле пульса
+    TIM22->CCR1 = irPkt[txFieldCount++];
+    // Заполняем поле паузы (Пауза = ARR - "пульс")
+    tmp = TIM22->CCR1;
+    if( txFieldCount < field0Num){
+      tmp += irPkt[txFieldCount++];
+    }
+    TIM22->ARR = tmp;
+
+
     // OC1REF - как TGRO
     TIM22->CR2 |= TIM_CR2_MMS_2;
     // PWM2
     TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1) | TIM_CCMR1_OC1PE;
 //    TIM22->CCMR1 = (TIM22->CCMR1 & ~(TIM_CCMR1_OC1M)) | (TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0) | TIM_CCMR1_OC1PE;
+    TIM22->CR1 |= TIM_CR1_ARPE;
+
     TIM22->SR = 0;
   //  // Прерывание по переполнению
-    TIM22->DIER |= TIM_DIER_CC1IE;
-  //  // Конфигурация NVIC для прерывания по таймеру TIM22
+    TIM22->DIER |= TIM_DIER_CC1IE | TIM_DIER_UIE;
+    //  // Конфигурация NVIC для прерывания по таймеру TIM22
     NVIC_EnableIRQ( TIM22_IRQn );
     NVIC_SetPriority( TIM22_IRQn, 1 );
     txFlag = ON;
@@ -149,6 +156,10 @@ int main(int argc, char* argv[])
     {}
   }
 
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   while(1)
   {}
 
