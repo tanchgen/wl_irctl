@@ -273,7 +273,7 @@ void TIM22_IRQHandler( void ){
   else if( TIM22->SR & TIM_SR_CC1IF){
     GPIOA->BSRR |= GPIO_Pin_11;
     // Пульс закончился
-    if( txFieldCount >= field0Num ){
+    if( txFieldCount > field0Num ){
       // Передача закончена - все выключаем
       TIM22->CR1 &= ~TIM_CR1_CEN;
       IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
