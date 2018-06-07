@@ -10,6 +10,17 @@
 
 #include "main.h"
 
+#define ONOFF_VAL_COUNT_MAX     2
+#define TEMP_VAL_COUNT_MAX      15
+#define MODE_VAL_COUNT_MAX      5
+#define FAN_VAL_COUNT_MAX       5
+#define SWING_VAL_COUNT_MAX     5
+
+#define ONOFF_FIELDL_COUNT_MAX     10
+#define TEMP_FIELD_COUNT_MAX      20
+#define MODE_FIELD_COUNT_MAX      10
+#define FAN_FIELD_COUNT_MAX       10
+#define SWING_FIELD_COUNT_MAX     10
 
 // ============== ПАРАМЕТРЫ РАБОТЫ ====================
 // Режимы работы
@@ -102,13 +113,37 @@ enum  eFieldType {
   FTYPE_BIT
 };
 
+typedef struct {
+  uint8_t fieldNum;         // Порядковый номер поля в пакете
+  uint16_t fieldDur;        // Продолжительность поля в 10мкс
+} tRxFieldLst;
+
+struct eeProtoBak {
+  uint16_t fld0Pkt[256];
+  // Структура изменяемых полей
+  tRxFieldLst diffField[4+120+30+30+30];
+  // Массив указателей на структуры изменяемых полей
+  tRxFieldLst * pfldDiff[ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + \
+                         FAN_VAL_COUNT_MAX + SWING_VAL_COUNT_MAX];
+  // Массив количества изменных полей для каждого параметра
+  uint8_t fldDiffQuant[ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + \
+                         FAN_VAL_COUNT_MAX + SWING_VAL_COUNT_MAX];
+  eProtoName protoName;
+  uint8_t fld0Num;
+};
+
+extern struct eeProtoBak eeIrProtoBak;
 extern eProtoName protoName;
 extern tProtoDesc protoDesc[];
 extern tAcData acData;
+extern tRxFieldLst * pIrField[];            // Массив указателей на структуры изменяемых полей
+extern tRxFieldLst irDiffField[];           // Список отличающихся от НАЧАЛЬНОГО полей
+
 
 uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len );
 uint8_t protoDefCod( tProtoDesc * prDesc );
 void protoNonDefCod( void );
+uint8_t irProtoRestore( void );
 
 // Сравнение длительностей полей в ИК-пакете
 inline int8_t irDurCmp( uint16_t dur0, uint16_t dur, uint8_t percent){

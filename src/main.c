@@ -19,7 +19,10 @@
 EEMEM tEeBackup eeBackup;     // Структура сохраняемых в EEPROM параметров
 //tEeBackup eeBackup;             // Структура сохраняемых в EEPROM параметров
 
-EEMEM uint32_t wfiFaultCount;   // Для тестирования: Счетчик секунд работы не в состоянии STOP
+EEMEM __aligned(4) struct eeProtoBak eeIrProtoBak;
+
+
+//EEMEM uint32_t wfiFaultCount;   // Для тестирования: Счетчик секунд работы не в состоянии STOP
 
 volatile tSensData sensData;    // Структура измеряемых датчиком параметров
 volatile eState state;          // Состояние машины
@@ -63,6 +66,9 @@ int main(int argc, char* argv[])
  * а затем по нажатию КНОПКИ разбудить, настроить ВСЕ и включить в рабочее состояние
  */
   startPwrInit();
+  // Разлочили EEPROM
+  eepromUnlock();
+
   timeInit();
   buttonInit();
   buzzerInit();
@@ -70,13 +76,15 @@ int main(int argc, char* argv[])
   RCC->IOPENR |= RCC_IOPENR_GPIOAEN;
   RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
+  field0Num = irProtoRestore();
 
 // ==============================================================================
   irRxInit();
   // Включаем обработку входа ИК-приемника
   EXTI->IMR |= IR_RX_PIN;
 
-
+  // Инициализация таймера Модулирующего сигнала для ПЕРЕДАЧИ
+  irModulTxTimInit();
 
   // #################### ТЕСТИРОВАНИЕ ПЕРЕДАЧИ ПАКЕТА ##############################
   irCarierTimInit();
@@ -140,13 +148,11 @@ int main(int argc, char* argv[])
   irCarierTimInit();
   irPktSend();
 
-  // ####################################################################
   while(1)
   {}
+  // ####################################################################
 
-  // Разлочили EEPROM
-  eepromUnlock();
-
+  while( protoName )
   rfmInit();
   batInit();
 //  irRxInit();

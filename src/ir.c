@@ -8,6 +8,7 @@
 #include "string.h"
 
 #include "stm32l0xx.h"
+#include "my_time.h"
 #include "gpio.h"
 #include "button.h"
 #include "proto.h"
@@ -188,8 +189,6 @@ void irRxInit( void ){
 
   // Инициализация таймера Модулирующего сигнала для ОБУЧЕНИЯ
   irModulLearnTimInit();
-  // Инициализация таймера Модулирующего сигнала для ПЕРЕДАЧИ
-  irModulTxTimInit();
 
   rxStat = RX_STAT_0;
   pIrPkt = ir0Pkt;
@@ -274,6 +273,10 @@ uint8_t learnProcess( void ){
             buzzerShortPulse();
             onOffFlag = ON;
             field0Num = irRxIndex;
+            // Сохраняем в EEPROM
+            memcpy( eeIrProtoBak.fld0Pkt, ir0Pkt, field0Num * 2 );
+            eeIrProtoBak.fld0Num = field0Num;
+            eeIrProtoBak.protoName = protoName;
           }
           else {
             // Ошибка приема пакета
@@ -319,6 +322,8 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
   uint8_t sellNum = paramfieldBegin[rxSt] + paramCnt;
 
   tRxFieldLst *fieldList;
+  tRxFieldLst *eeFldList;
+
   // Если счетчик номера параметра превышен - различия в принятом пакете относительно
   // НАЧАЛЬНОГО считать, но не сохранять.
   // Например: Если уже сохранено для 30 гр.Ц (максимальный номер параметра) - различия считаем,
@@ -329,8 +334,13 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
   if( pIrField[ sellNum ] == NULL ){
     // Сохраняем указатель на изменяемые поля для текущего номера параметров
     pIrField[ sellNum ] = pIrDiffField;
+    // Тоже делаем в BackUp EEPROM
+    eeIrProtoBak.pfldDiff[ sellNum ] = pIrDiffField;
   }
   fieldList = pIrField[ sellNum ];
+
+  // Указатель на backup-запись в EEPROM
+  eeFldList = eeIrProtoBak.diffField + (fieldList - irDiffField);
 
   for( uint8_t i = 0; i < irRxIndex; i++ ){
     if( irDurCmp( ir0Pkt[i], irPkt[i], 20) ){
@@ -346,6 +356,11 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
       }
       fieldList->fieldNum = i;
       fieldList++->fieldDur = irPkt[i];
+
+      // Тоже делаем в BackUp EEPROM
+      eeFldList->fieldNum = i;
+      eeFldList++->fieldDur = irPkt[i];
+
       if( fieldList > (irDiffField + sizeof(irDiffField)) ) {
         // Указатель на различающиеся поля превысил допустимый - выходим
         diffCnt = -1;
@@ -367,6 +382,8 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
   if(onOffFlag != OFF){
     if( diffCnt < 14){
       rxFieldQuant[ sellNum ] = diffCnt;
+      // Тоже делаем в BackUp EEPROM
+      eeIrProtoBak.fldDiffQuant[ sellNum ] = diffCnt;
     }
     else {
       // Слишком большое количество изменений - ошибка пакета
@@ -381,35 +398,51 @@ exit:
 
 void learnReset( void ){
   uint32_t * p32;
+  uint32_t * eep32;
 
-  if( onOffFlag != ON ){
-    // Обучение
+  if( (btn.longPressCnt == 1)){
+    // Очищаем  сохраненные изменяемые поля
+    p32 = (uint32_t *)(irDiffField + rxFieldQuant[0]);
+    eep32 = (uint32_t *)(eeIrProtoBak.diffField + rxFieldQuant[0]);
+    for(uint8_t i = 0; i < (sizeof(irDiffField)/4 - rxFieldQuant[0]); i++){
+      *(p32+i) = 0;
+      *(eep32+i) = 0;
+    }
+
+    for(uint8_t i = 1; i < (sizeof(rxFieldQuant) - 1); i++){
+      // Очищаем список указателей на измененные поля
+      pIrField[i] = NULL;
+      eeIrProtoBak.pfldDiff[i] = NULL;
+      // Очищаем список длин последовательностей измененных полей
+      rxFieldQuant[i] = 0;
+      eeIrProtoBak.fldDiffQuant[i] = 0;
+    }
+    pIrDiffField = irDiffField + rxFieldQuant[0];
+  }
+  if( (onOffFlag != ON) || (btn.longPressCnt > 1) ){
+    // Обучение сначала
     rxStat = RX_STAT_0;
     onOffFlag = -1;
+    btn.longPressCnt = 0;
 
     // Очищаем  сохраненные изменяемые поля
-    p32 = (uint32_t *)(pIrField[0]);
+    p32 = (uint32_t *)irDiffField;
+    eep32 = (uint32_t *)eeIrProtoBak.diffField;
     for(uint8_t i = 0; i < rxFieldQuant[0]; i++){
       *(p32+i) = 0;
+      *(eep32+i) = 0;
     }
     pIrField[0] = NULL;
     rxFieldQuant[0] = 0;
     pIrDiffField = irDiffField;
+    // Стираем запись в EEPROM
+    eeIrProtoBak.fld0Num = 0;
+
+    // Будет звучать ДВА долгих зуммера
+    buzzerLongPulse();
+    mDelay(125);
   }
-  else {
-    // Очищаем  сохраненные изменяемые поля
-    p32 = (uint32_t *)(pIrField[0]+rxFieldQuant[0]);
-    for(uint8_t i = 0; i < (sizeof(irDiffField)/4 - rxFieldQuant[0]); i++){
-      *(p32+i) = 0;
-    }
-    for(uint8_t i = 1; i < (sizeof(pIrField)/4 - 1); i++){
-      pIrField[i] = NULL;
-    }
-    for(uint8_t i = 1; i < (sizeof(rxFieldQuant) - 1); i++){
-      rxFieldQuant[i] = 0;
-    }
-    pIrDiffField = irDiffField + rxFieldQuant[0];
-  }
+  // Очищаем  сохраненные изменяемые поля
 
   // обнуляем счетчик нажатий
   btn.pressCnt = 0;

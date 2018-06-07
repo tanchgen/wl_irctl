@@ -298,6 +298,8 @@ void TIM2_IRQHandler( void ){
         buzzerLongPulse();
         onOffFlag = ON;
         field0Num = irRxIndex;
+        eeIrProtoBak.fld0Num = field0Num;
+        eeIrProtoBak.protoName = protoName;
       }
     }
     irRxGetFlag = SET;

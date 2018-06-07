@@ -20,6 +20,7 @@ typedef struct {
   uint32_t tOffSec;     // Время отжатия - секунды
   uint32_t tOffSS;      // Время нажатия - субсекунды
   uint8_t pressCnt;     // Счетчик нажатий
+  uint8_t longPressCnt; // Счетчик долгих нажатий
 } tButton;
 
 extern tButton btn;

@@ -60,11 +60,11 @@ typedef enum {
 
 // Структура сохраняемых в EEPROM параметров
 typedef struct __packed  {
+  uint16_t rfmNetId;     // ID сети
   uint8_t adcCal;       // Цалибровочный фактор для АЦП
   uint8_t rfmChannel;   // Номер канала
   uint8_t rfmNodeAddr;  // Адрес Нода
   uint8_t rfmTxPwr;     // Мощность передатчика
-  uint16_t rfmNetId;     // ID сети
 } tEeBackup;
 
 // Структура измеряемых датчиком параметров

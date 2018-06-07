@@ -5,6 +5,7 @@
  *      Author: Gennady Tanchin <g.tanchin@yandex.ru>
  */
 
+#include <string.h>
 #include "stm32l0xx.h"
 #include "ir.h"
 #include "proto.h"
@@ -42,6 +43,7 @@ tAcData acData = {
     SWING_POS_1
 };
 
+// ###################################### ОПРЕДЕЛЕННЫЕ ПРОТОКОЛЫ ###################################
 //=============== Опитсание протокола AERONIK ============================
 // Длительности (кол-во периодов несущей) полей заголовка
 uint16_t anikHeader0Field[2] = {344, 172};
@@ -278,7 +280,7 @@ uint8_t protoDefCod( tProtoDesc * prDesc ){
 
 
 
-// Установка параметров для Определенного
+// Установка параметров для Определенного протокола
 void protoDefParamSet( uint16_t * arr, const tParamPos * pprm ){
   uint8_t value;
   uint16_t * arrn;
@@ -371,4 +373,29 @@ uint8_t acParamValue( uint8_t param ){
   }
 
   return value;
+}
+
+uint8_t irProtoRestore( void ){
+  uint8_t fldNum = 0;
+
+  if( (fldNum = eeIrProtoBak.fld0Num) == 0 ){
+    // Восстанавливать нечего - ничего не сохранено
+    goto restEnd;
+  }
+  onOffFlag = ON;
+  if( (protoName = eeIrProtoBak.protoName) != PROTO_NONAME ){
+    // ОПРЕДЕЛЕННЫЙ протокол - больше восстанавливать нечего
+    goto restEnd;
+  }
+
+  // Восстанавление НЕОПРЕДЕЛЕННОГО протокола
+  memcpy( ir0Pkt, eeIrProtoBak.fld0Pkt, fldNum * 2);
+  memcpy( irDiffField, eeIrProtoBak.diffField, sizeof(tRxFieldLst) * 214 );
+
+#define SELL_NUM (ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + FAN_VAL_COUNT_MAX + SWING_VAL_COUNT_MAX)
+  memcpy( pIrField, eeIrProtoBak.pfldDiff, SELL_NUM * sizeof(tRxFieldLst) );
+  memcpy( rxFieldQuant, eeIrProtoBak.fldDiffQuant, SELL_NUM );
+
+restEnd:
+  return fldNum;
 }

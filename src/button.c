@@ -13,6 +13,8 @@
 
 tButton btn;
 
+
+
 // Переключение вывода на выключение питания пищалки
 // и включения входа прерывания от кнопки
 static void buzzerPowerOff( void );
@@ -51,6 +53,7 @@ void buttonInit( void ){
   NVIC_SetPriority( BTN_EXTI_IRQn, 1 );
 
   btn.pressCnt = 0;
+  btn.longPressCnt = 0;
   btn.stat = 0;
   btn.tOnSec = 0;
   btn.tOnSS = 0;
@@ -99,6 +102,7 @@ void buttonProcess( uint32_t ut ){
       // ИК-пакет не принимался.
       if( tmpTime > 0x133 ){
         // КНОПКА была нажата более ~1.2 секунды - обнуляем счетчик нажатий
+        btn.longPressCnt++;
         learnReset();
       }
       else if( onOffFlag == ON  ){
@@ -116,6 +120,10 @@ void buttonProcess( uint32_t ut ){
           mDelay(125);
         }
       }
+    }
+    else {
+      // Был принят какой-то пакет - обнуляем счетчик длинных нажатий
+      btn.longPressCnt = 0;
     }
     irRxGetFlag = RESET;
   }

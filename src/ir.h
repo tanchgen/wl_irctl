@@ -20,18 +20,6 @@
  */
 #define PARAM_NUM_MAX           4
 
-#define ONOFF_VAL_COUNT_MAX     2
-#define TEMP_VAL_COUNT_MAX      15
-#define MODE_VAL_COUNT_MAX      5
-#define FAN_VAL_COUNT_MAX       5
-#define SWING_VAL_COUNT_MAX     5
-
-#define ONOFF_FIELDL_COUNT_MAX     10
-#define TEMP_FIELD_COUNT_MAX      20
-#define MODE_FIELD_COUNT_MAX      10
-#define FAN_FIELD_COUNT_MAX       10
-#define SWING_FIELD_COUNT_MAX     10
-
 // Состояние обучения
 typedef enum {
   RX_STAT_ONOFF,
@@ -51,11 +39,6 @@ typedef enum {
   PARAM_CRC
 } eParam;
 
-typedef struct {
-  uint8_t fieldNum;         // Порядковый номер поля в пакете
-  uint16_t fieldDur;        // Продолжительность поля в 10мкс
-} tRxFieldLst;
-
 extern int8_t onOffFlag;
 extern uint16_t irRxIndex;
 extern uint8_t irRxGetFlag;
@@ -68,7 +51,6 @@ extern uint16_t irPkt[];
 extern eRxStat rxStat;                      // Стастус (Этап) приема обучающих пакетов
 extern const uint8_t paramfieldBegin[];    // Массив Указателей на зону измененных полей для каждого параметра
 extern uint8_t rxFieldQuant[];              // Массив количества изменных полей для каждого параметра
-extern tRxFieldLst * pIrField[];            // Массив указателей на структуры изменяемых полей
 
 extern uint8_t txFieldCount;                // Счетчик полей, передаваемых по ИК-каналу
 extern uint8_t field0Num;                  // Соличество полей в НАЧАЛЬНОМ пакете
