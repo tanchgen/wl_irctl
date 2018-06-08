@@ -37,8 +37,8 @@ tFieldArr newProtoField = {
 // Режим работы кондиционера
 tAcData acData = {
     ON,             // Включить
-    COOL,           // Охлаждение
-    7,              // 23гр.Ц
+    AC_MODE_COOL,           // Охлаждение
+    TEMP_23,              // 23гр.Ц
     FAN_SPEED_AUTO,  // Скорость - авто
     SWING_POS_1
 };
@@ -222,6 +222,55 @@ int8_t areaFind( tFieldArr * pFldArr, uint8_t *idx ){
 }
 
 
+
+// Установка параметров для Определенного протокола
+void protoDefParamSet( uint16_t * arr, const tParamPos * pprm ){
+  uint8_t value;
+  uint16_t * arrn;
+  uint8_t i;
+
+  for( i = 0; i < 6; i++ ){
+    value = acParamValue( i );
+    arrn = arr + (pprm[i].pos/ 16);
+    *arrn = (*arrn & ~(pprm[i].mask << (pprm[i].pos % 16))) | (value << (pprm[i].pos % 16));
+  }
+}
+
+/* Расчет контрольной суммы для поля данных
+ * arr - массив данных
+ * mod - длина CRC в битах
+ * len - длина расчитываемых данных в длинах "mod":
+ * Например: Длина arr - 32бита, mod - 8бит, следовательно, len = 4
+ */
+uint8_t crcCod( uint16_t * arr, uint8_t len, uint8_t mod ){
+  uint8_t crc = 0;
+  uint8_t mask = 0;
+
+  mask = (1 << mod) - 1;
+
+  for( uint8_t i = 0; i < len; i++){
+    crc += (arr[ i * mod / 16] >> ( (i * mod) % 16) ) & mask;
+  }
+  while( crc > 0xf ){
+    crc = (crc & 0xf) + ((crc & 0xf0) >> 4);
+  }
+
+  return crc;
+}
+
+// Кодирование пакета для отправки по ИК
+void protoPktCod( void ){
+  // Формируем сырой пакет для передачи по ИК
+  if( protoName == PROTO_NONAME){
+    protoNonDefCod();
+  }
+  else {
+    protoDefCod( &protoDesc[protoName] );
+  }
+
+}
+
+
 // Кодирование отправляемого ИК-пакета для Определенного протокола
 uint8_t protoDefCod( tProtoDesc * prDesc ){
   uint8_t rec = 0;
@@ -278,43 +327,6 @@ uint8_t protoDefCod( tProtoDesc * prDesc ){
   return rec;
 }
 
-
-
-// Установка параметров для Определенного протокола
-void protoDefParamSet( uint16_t * arr, const tParamPos * pprm ){
-  uint8_t value;
-  uint16_t * arrn;
-  uint8_t i;
-
-  for( i = 0; i < 6; i++ ){
-    value = acParamValue( i );
-    arrn = arr + (pprm[i].pos/ 16);
-    *arrn = (*arrn & ~(pprm[i].mask << (pprm[i].pos % 16))) | (value << (pprm[i].pos % 16));
-  }
-}
-
-/* Расчет контрольной суммы для поля данных
- * arr - массив данных
- * mod - длина CRC в битах
- * len - длина расчитываемых данных в длинах "mod":
- * Например: Длина arr - 32бита, mod - 8бит, следовательно, len = 4
- */
-uint8_t crcCod( uint16_t * arr, uint8_t len, uint8_t mod ){
-  uint8_t crc = 0;
-  uint8_t mask = 0;
-
-  mask = (1 << mod) - 1;
-
-  for( uint8_t i = 0; i < len; i++){
-    crc += (arr[ i * mod / 16] >> ( (i * mod) % 16) ) & mask;
-  }
-  while( crc > 0xf ){
-    crc = (crc & 0xf) + ((crc & 0xf0) >> 4);
-  }
-
-  return crc;
-}
-
 void protoNonDefCod( void ){
   // Сначала копируем НАЧАЛЬНЫЙ пакет в массив полей для отправки
   for( uint8_t i = 0; i < irRxIndex; i++ ){
@@ -326,6 +338,29 @@ void protoNonDefCod( void ){
     uint8_t sellNum;
 
     value = acParamValue( i );
+    /* Если какой-то из параметров отличается от параметров НАЧАЛЬНОГО пакета - устанавливаем его и
+     * устанавливаем его и следующие НЕ меняем
+     */
+
+    if( i == PARAM_ONOFF ){
+      i = PARAM_CRC;
+    }
+    else if ( i == PARAM_MODE ){
+      if(value != AC_MODE_COOL){
+        i = PARAM_CRC;
+      }
+    }
+    else if( i == PARAM_TEMP ){
+      if( value != TEMP_23 ){
+        i = PARAM_CRC;
+      }
+    }
+    else if( i == PARAM_FAN ){
+      if( value != FAN_SPEED_AUTO ){
+        i = PARAM_CRC;
+      }
+    }
+
     sellNum = paramfieldBegin[i] + value;
 
     // Перебираем отличия в полях

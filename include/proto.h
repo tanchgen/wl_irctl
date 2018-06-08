@@ -25,12 +25,14 @@
 // ============== ПАРАМЕТРЫ РАБОТЫ ====================
 // Режимы работы
 enum eMode{
-  COOL,
-  DRY,
-  VENT,
-  HEAT,
-  AUTO
+  AC_MODE_AUTO,
+  AC_MODE_COOL,
+  AC_MODE_DRY,
+  AC_MODE_VENT,
+  AC_MODE_HEAT
 };
+
+#define TEMP_23     7
 
 // Скорость вентилятора
 enum eFanSpeed {
@@ -141,6 +143,7 @@ extern tRxFieldLst irDiffField[];           // Список отличающих
 
 
 uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len );
+void protoPktCod( void );
 uint8_t protoDefCod( tProtoDesc * prDesc );
 void protoNonDefCod( void );
 uint8_t irProtoRestore( void );
