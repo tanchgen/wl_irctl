@@ -112,14 +112,14 @@ void irModulLearnTimInit( void ){
    TIM2->PSC = (110)-1;
    // Перезагрузка по истечение 100мс
    TIM2->ARR = 1480;
-   TIM2->CR1 |= TIM_CR1_CEN;
+//   TIM2->CR1 |= TIM_CR1_CEN;
    TIM2->EGR = TIM_EGR_UG;
 
    // Ждем, пока обновится счетчик
    while( (TIM2->SR & TIM_SR_UIF) == 0 )
    {}
-   TIM2->CR1 &= ~TIM_CR1_CEN;
-   TIM2->CNT = 0;
+//   TIM2->CR1 &= ~TIM_CR1_CEN;
+//   TIM2->CNT = 0;
    TIM2->SR &= ~TIM_SR_UIF;
    // Прерывание по переполнению
    TIM2->DIER |= TIM_DIER_UIE;

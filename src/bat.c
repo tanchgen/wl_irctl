@@ -48,7 +48,7 @@ void batInit(void){
 }
 
 void batStart( void ){
-  sensData.bat = 0;
+  driveData.bat = 0;
 
 	RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
   // Опять включаем АЦП после калибровки
@@ -76,11 +76,10 @@ void batEnd( void ){
   ADC1->CR &= ~ADC_CR_ADVREGEN;
 
 	// Пересчет: X (мВ) / 10 - 150 = Y * 0.01В. Например: 3600мВ = 210ед, 2000мВ = 50ед
-	sensData.bat = (uint8_t)(((3000L * vrefCal)/vref)/10 - 150);
+  driveData.bat = (uint8_t)(((3000L * vrefCal)/vref)/10 - 150);
   // Стираем флаги
   ADC1->ISR |= 0xFF; //ADC_ISR_EOS | ADC_ISR_EOC | ADC_ISR_EOSMP;
 	RCC->APB2ENR &= ~RCC_APB2ENR_ADCEN;
 	flags.batCplt = TRUE;
 	    // Не пара ли передавать данные серверу?
-	dataSendTry();
 }

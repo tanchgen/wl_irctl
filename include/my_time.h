@@ -62,10 +62,16 @@ extern volatile uint8_t sendToutFlag;
 
 extern __IO uint32_t myTick;
 
+extern volatile uint8_t minToutTx;
+extern volatile uint8_t secToutTx;
+extern volatile uint8_t secToutRx;
+
 // *********** Инициализация структуры ВРЕМЯ (сейчас - системное ) ************
 void rtcStartInit(void);
 void rtcWorkInit(void);
 void timeInit( void );
+void setAlrmSecMask( uint8_t secMask );
+void alrmBOn(  void );
 
 // Получение системного мремени
 uint32_t getTick( void );

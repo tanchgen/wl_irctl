@@ -97,8 +97,10 @@ typedef enum {
 } eSensType;
 
 extern tUxTime sendTryStopTime;
+extern volatile uint8_t connectFlag;
+extern volatile uint8_t connectCount;
 
-void mesureStart( void );
+void mesure( void );
 void wutIrqHandler( void );
 int8_t dataSendTry( void );
 void csmaRun( void );

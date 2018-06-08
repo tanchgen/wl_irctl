@@ -259,7 +259,12 @@ uint8_t crcCod( uint16_t * arr, uint8_t len, uint8_t mod ){
 }
 
 // Кодирование пакета для отправки по ИК
-void protoPktCod( void ){
+uint8_t protoPktCod( void ){
+  if(field0Num == 0){
+    // Еще не прошел обучение - неизвестно, что отправлять
+    return 1;
+  }
+
   // Формируем сырой пакет для передачи по ИК
   if( protoName == PROTO_NONAME){
     protoNonDefCod();
@@ -267,7 +272,7 @@ void protoPktCod( void ){
   else {
     protoDefCod( &protoDesc[protoName] );
   }
-
+  return 0;
 }
 
 

@@ -17,6 +17,10 @@
 volatile tRtc rtc;
 volatile tUxTime uxTime;
 volatile uint8_t sendToutFlag = SET;
+volatile uint8_t minToutTx;
+volatile uint8_t secToutTx;
+volatile uint8_t secToutRx;
+
 //uint8_t secondFlag = RESET;
 
 // Для тестирования - массив интервалов таймера WUT
@@ -91,16 +95,19 @@ void rtcWorkInit(  void ) {
   RTC->WPR = 0xCA;
   RTC->WPR = 0x53;
 
-  // --- Configure Alarm A -----
+  // ======= Конфигурация будильников A и B: Будильник A - ПЕРЕДАЧА, Будильник B - ПРИЕМ ========
   // Disable alarm A to modify it
-  RTC->CR &= ~RTC_CR_ALRAE;
-  while((RTC->ISR & RTC_ISR_ALRAWF) != RTC_ISR_ALRAWF)
+  RTC->CR &= ~(RTC_CR_ALRAE | RTC_CR_ALRBE);
+  while( ((RTC->ISR & RTC_ISR_ALRAWF) != RTC_ISR_ALRAWF) && ((RTC->ISR & RTC_ISR_ALRBWF) != RTC_ISR_ALRBWF) )
   {}
   // Устанавливаем секунды в будильник - разбиваем все ноды на 60 групп
   RTC->ALRMAR = (uint32_t)(BIN2BCD(rfm.nodeAddr % 60));
   // Alarm A every day, every hour, every minute, every second
   RTC->ALRMAR |= RTC_ALRMAR_MSK4 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK2 | RTC_ALRMAR_MSK1;
-  RTC->CR |= RTC_CR_ALRAIE | RTC_CR_ALRAE;
+  // Alarm B every day, every hour, every minute, every second
+  RTC->ALRMBR |= RTC_ALRMBR_MSK4 | RTC_ALRMBR_MSK3 | RTC_ALRMBR_MSK2 | RTC_ALRMBR_MSK1;
+  // Разрешаем пока только будильник передачи
+  RTC->CR |= (RTC_CR_ALRAIE | RTC_CR_ALRAE);
 
   // Disable write access
   RTC->WPR = 0xFE;
@@ -112,6 +119,25 @@ void rtcWorkInit(  void ) {
   EXTI->RTSR |= EXTI_RTSR_TR17;
 
 }
+
+void setAlrmSecMask( uint8_t secMask ){
+  RTC->WPR = 0xCA;
+  RTC->WPR = 0x53;
+  RTC->CR &=~ RTC_CR_ALRAE;
+  while ((RTC->ISR & RTC_ISR_ALRAWF) != RTC_ISR_ALRAWF)
+  {}
+  // Alarm A every day, every hour, every minute, every second
+  if( secMask ){
+    RTC->ALRMAR |= RTC_ALRMAR_MSK1;
+  }
+  else {
+    RTC->ALRMAR &= ~RTC_ALRMAR_MSK1;
+  }
+  RTC->CR = RTC_CR_ALRAIE | RTC_CR_ALRAE;
+  RTC->WPR = 0xFE;
+  RTC->WPR = 0x64;
+}
+
 
 void timeInit( void ) {
   //Инициализируем RTC
@@ -131,6 +157,14 @@ void timeInit( void ) {
   wutTest[10].wutVol = RTC->DR;
   RTC_SetDate( &rtc );
   RTC_SetTime( &rtc );
+
+  // Интервал будильника - передача минуты
+  minToutTx = 1;
+  // Интервал будильника - передача секунды
+  secToutTx = 10;
+  // Интервал будильника - прием секунды
+  secToutRx = 5;
+
 //  // Выставляем будильник для измерения температуры
 //  rtc.sec = BIN2BCD(rfm.nodeAddr % 60) + 1;
 //  uxTime = xTm2Utime( &rtc );
@@ -139,6 +173,26 @@ void timeInit( void ) {
   while( (wutTest[10].wutVol == RTC->DR) )
   {}
 }
+
+void alrmBOn(  void ) {
+  // Write access for RTC registers
+  RTC->WPR = 0xCA;
+  RTC->WPR = 0x53;
+
+  // ======= Конфигурация будильников A и B: Будильник A - ПЕРЕДАЧА, Будильник B - ПРИЕМ ========
+  // Disable alarm A to modify it
+  RTC->CR &= ~(RTC_CR_ALRBE);
+  while( (RTC->ISR & RTC_ISR_ALRBWF) != RTC_ISR_ALRBWF )
+  {}
+  // Разрешаем пока только будильник передачи
+  RTC->CR |= (RTC_CR_ALRBIE | RTC_CR_ALRBE);
+
+  // Disable write access
+  RTC->WPR = 0xFE;
+  RTC->WPR = 0x64;
+
+}
+
 
 // Получение системного мремени
 uint32_t getTick( void ) {

@@ -52,6 +52,11 @@ enum eSwingPos {
   SWING_POS_4,
 };
 
+enum eAcErr{
+  AC_ERR_OK = 0,
+  AC_ERR_NON_LEARN,
+};
+
 // Битовое поле параметров работы кондиционера
 typedef struct {
   unsigned int onoff:  1;        // Вкл. / Выкл.
@@ -59,6 +64,7 @@ typedef struct {
   unsigned int temp:   4;        // Температура (гр.Ц - 16): 23гр.Ц --> temp = 7
   enum eFanSpeed fan:   3;        // Скорость вентилятора
   enum eSwingPos swing: 3;        // Положение диффузора
+  enum eAcErr   err:    2;        // Ошибка контроллера кондиционера
 } tAcData;
 
 // Структура массива полей НАЧАЛЬНОГО заголовка
@@ -143,7 +149,7 @@ extern tRxFieldLst irDiffField[];           // Список отличающих
 
 
 uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len );
-void protoPktCod( void );
+uint8_t protoPktCod( void );
 uint8_t protoDefCod( tProtoDesc * prDesc );
 void protoNonDefCod( void );
 uint8_t irProtoRestore( void );

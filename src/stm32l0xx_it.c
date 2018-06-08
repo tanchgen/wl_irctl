@@ -37,6 +37,8 @@ extern volatile uint8_t csmaCount;
 //  }
 //}
 
+inline void txToutSet( void );
+
 /******************************************************************************/
 /*            Cortex-M0+ Processor Interruption and Exception Handlers         */ 
 /******************************************************************************/
@@ -75,35 +77,46 @@ void RTC_IRQHandler(void){
   	wutStop();
   	wutIrqHandler();
   }
-  if( RTC->ISR & RTC_ISR_ALRAF ){
+  // =============== Сработал будильник приемника =======================
+  if( RTC->ISR & RTC_ISR_ALRBF ){
+    //Стираем флаг прерывания и будильника вкл. приема, и предачи (прием важнее!)
+    RTC->ISR &= ~(RTC_ISR_ALRAF | RTC_ISR_ALRBF);
+    // Стираем флаг прерывания EXTI
+    EXTI->PR &= EXTI_PR_PR17;
+    // Таймер на прослушивание канала для приема команд = 10мс
+    wutSet(10000);
+    // Включаем прием
+    rfmSetMode_s( REG_OPMODE_RX );
+    state = STAT_RX_START;
+  }
+// =============== Сработал будильник передачи =======================
+  else if( RTC->ISR & RTC_ISR_ALRAF ){
+    while( (RTC->ISR & RTC_ISR_RSF) == 0 )
+    {}
+//    uint32_t dr = RTC->DR;
+//    (void)dr;
+//    uint32_t tr0 = RTC->TR;
+//    uint32_t tr = RTC->TR;
+//    if (tr0 != tr ){
+//      tr = RTC->TR;
+//    }
 
-    uint32_t dr = RTC->DR;
-    (void)dr;
-    uint32_t tr0 = RTC->TR;
-    uint32_t tr = RTC->TR;
-    if (tr0 != tr ){
-      tr = RTC->TR;
+    uxTime = getRtcTime();
+
+//    wutTest[wutCount++].wutVol = rtc.sec;
+//    if( wutCount == 20){
+//      wutCount = 0;
+//    }
+    if( ((rtc.sec % secToutTx) == 0) && ((rtc.min % minToutTx) == 0) ){
+      if(state == STAT_READY){
+        // Периодическое измерение - измеряем все
+        mesure();
+        // Настало время передачи: Передаем состояние
+        csmaRun();
+      }
     }
-
     //Clear ALRAF
     RTC->ISR &= ~RTC_ISR_ALRAF;
-//    if( (tr & 0x1) != 0){
-//      if((rtc.min % SEND_TOUT) != 0) {
-//        sendToutFlag = SET;
-//      }
-//      // Alarm A interrupt: Каждая вторая секунда
-//      uxTime = getRtcTime();
-//      if(state == STAT_READY){
-//        if( sendToutFlag == SET ){
-//          // Периодическое измерение - измеряем все
-//          mesureStart();
-//        }
-//        else {
-//          // Измеряем только освещенность
-//          lightStart();
-//        }
-//      }
-//    }
     // Стираем флаг прерывания EXTI
     EXTI->PR &= EXTI_PR_PR17;
   }
@@ -128,27 +141,51 @@ void RTC_IRQHandler(void){
 */
 void EXTI0_1_IRQHandler(void)
 {
-//#if ! STOP_EN
-//  rtcLog[rtcLogCount].ssr = RTC->SSR;
-//  rtcLog[rtcLogCount++].state = state;
-//  rtcLogCount &= 0x3F;
-//#endif
-	// Восстанавливаем настройки портов
+  tPkt rxPkt;
+
+  // Восстанавливаем настройки портов
   restoreContext();
 
   // Стираем флаг прерывания EXTI
   EXTI->PR &= DIO0_PIN;
   if( rfm.mode == MODE_RX ){
-    // Если что-то и приняли, то случайно
-    // Опустошаем FIFO
-    while( dioRead(DIO_RX_FIFONE) == SET ){
-      rfmRegRead( REG_FIFO );
+    // Приняли команду.
+
+    driveData.rssi = rfmRegRead( REG_RSSI_VAL );
+    rfmReceive( &rxPkt );
+    rfmRecvStop();
+    if( rxPkt.payDriveType == DRIV_TYPE_IRCTL){
+      driveData.cmdNum = rxPkt.payLoad.cmdMsg.cmdNum;
+      if( connectFlag == FALSE ){
+        enum eAcErr acErr;
+
+        // Маскируем секунды в будильнике A (TX)
+        setAlrmSecMask( RESET );
+        // Включаем будильник B (RX)
+        alrmBOn();
+        secToutTx = 1;
+        minToutTx = 6;
+        connectFlag = TRUE;
+        // Принята команда - Кодируем и отправляем команду на ИК
+        acData = *((tAcData *)&(rxPkt.payState));
+        if( (acErr = protoPktCod()) == AC_ERR_OK ){
+          acErr = irPktSend();
+        }
+        acData.err = acErr;
+        // Обновляем состояние устройства
+        mesure();
+        wutSet( 50000 );
+        state = STAT_DRIV_SEND;
+      }
     }
   }
   else if( rfm.mode == MODE_TX ) {
     // Отправили пакет с температурой
   	wutStop();
   	txEnd();
+    if( connectFlag == FALSE ){
+      txToutSet();
+    }
   }
   // Отмечаем останов RFM_TX
 #if DEBUG_TIME
@@ -312,3 +349,27 @@ void TIM2_IRQHandler( void ){
   wutSet(250000);
 }
 
+inline void txToutSet( void ){
+  if( connectCount > 39 ){
+    secToutTx = 1;
+    minToutTx = 6;
+  }
+  else {
+    connectCount++;
+    if( connectCount > 30){
+      secToutTx = 1;
+      minToutTx = 2;
+    }
+    else if( connectCount > 20){
+      // Переводим будильник на минутный интервал
+      setAlrmSecMask( RESET );
+      secToutTx = 1;
+      minToutTx = 1;
+    }
+    else if( connectCount > 10){
+      secToutTx = 1;
+      minToutTx = 30;
+    }
+
+  }
+}

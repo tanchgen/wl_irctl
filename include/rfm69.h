@@ -265,8 +265,20 @@ typedef struct {
 } __packed tSensMsg;
 
 typedef struct {
+  uint8_t srcNode;    // Адрес отправителя
+  uint8_t sensType;   // Тип конечного устройства
+  uint8_t msgNum;     // Номер пакета
+  uint8_t batVolt;    // Напряжение батареи питания
+  uint16_t devState;    // Состояние устройства
+  uint8_t cmdNum;     // Номер последнего принятогосообщения
+} __packed tDriveMsg;
+
+typedef struct {
+  uint8_t srcNode;    // Адрес, от кого получена команда
+  uint8_t driveType;  // Тип конечного устройства - для проверки, что команда соответствует получателю
+  uint8_t cmdNum;     // Номер полученой команды
   uint8_t cmd;
-  uint8_t x8[63];
+  uint8_t x8[60];
 } __packed tCmdMsg;
 
 typedef union {
@@ -274,6 +286,7 @@ typedef union {
   tCmdMsg cmdMsg;
   tTimeMsg timeMsg;
   tSensMsg sensMsg;
+  tDriveMsg driveMsg;
 } __packed uPayload;
 
 
@@ -285,16 +298,18 @@ typedef struct {
 #define payCmd       payLoad.cmdMsg.cmd
 #define payUtime     payLoad.timeMsg.time
 #define payMs        payLoad.timeMsg.ms
-#define paySrcNode   payLoad.sensMsg.srcNode
-#define payMsgNum    payLoad.sensMsg.msgNum
-#define payBat       payLoad.sensMsg.batVolt
-#define paySensType  payLoad.sensMsg.sensType
-#define payVolume    payLoad.sensMsg.Volume
+#define paySrcNode   payLoad.driveMsg.srcNode
+#define payMsgNum    payLoad.driveMsg.msgNum
+#define payBat       payLoad.driveMsg.batVolt
+#define payDriveType payLoad.driveMsg.sensType
+#define payState     payLoad.driveMsg.devState
+#define payCmdNum    payLoad.driveMsg.cmdNum
 
 //  uint8_t bufLen;       // Длина приемного буфера
 } __packed tPkt;
 
 extern tPkt pkt;
+
 extern tRfm  rfm;
 
 

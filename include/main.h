@@ -47,14 +47,17 @@ enum{
 };
 #endif
 
+
 typedef enum {
   STAT_READY,
   STAT_BTN_DBNC,
   STAT_BTN_ON,
   STAT_BTN_OFF,
   STAT_IR_RX_STOP,
+  STAT_DRIV_SEND,
   STAT_RF_CSMA_START,
   STAT_RF_CSMA_PAUSE,
+  STAT_RX_START,
   STAT_TX_START
 } eState;
 
@@ -69,12 +72,12 @@ typedef struct __packed  {
 
 // Структура измеряемых датчиком параметров
 typedef struct  __packed {
-  int16_t volume;           // Измеряемая температура
-  int16_t volumePrev;     // Температура предыдущего (1мин) измерения
-  int16_t volumePrev6;    // Температура предыдущего переданного (6мин) измерения
+  uint8_t devState;     // Состояние исполнительного устройства
+  uint8_t cmdNum;       // Температура предыдущего (1мин) измерения
+  int8_t temp;         // Температура предыдущего переданного (6мин) измерения
   uint8_t bat;          // Напряжение питания
   uint8_t rssi;         // Мощность принимаемого радиосигнала
-} tSensData;
+} tDriveData;
 
 typedef struct{
   unsigned int sensErr : 1;
@@ -84,7 +87,7 @@ typedef struct{
 
 //extern volatile uint32_t mTick;
 extern tEeBackup eeBackup;
-extern volatile tSensData sensData;           // Структура измеряемых датчиком параметров
+extern volatile tDriveData driveData;           // Структура измеряемых датчиком параметров
 extern volatile tFlags flags;                 // Флаги состояний системы
 extern volatile eState state;                          // Состояние машины
 

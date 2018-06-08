@@ -16,6 +16,8 @@
 #include "process.h"
 
 volatile uint8_t csmaCount = 0;
+volatile uint8_t connectFlag = FALSE;
+volatile uint8_t connectCount = 0;
 tUxTime sendTryStopTime;
 static uint8_t msgNum;      // Порядковый номер отправляемого пакета
 extern uint8_t wutCount;
@@ -23,7 +25,7 @@ extern uint8_t wutCount;
 static void sensDataSend( void );
 static uint32_t rngGet( void );
 
-void mesureStart( void ){
+void mesure( void ){
   // Запускаем измерение напряжения батареи
   batStart();
   batEnd();
@@ -63,6 +65,9 @@ void wutIrqHandler( void ){
       // Выключаем маску внешнего прерывания от ИК-приемника
       EXTI->IMR |= IR_RX_PIN;
       break;
+    case STAT_DRIV_SEND:
+      csmaRun();
+      break;
     case STAT_RF_CSMA_START:
       // Канал свободен - отправляем сообщение
       EXTI->PR &= DIO3_PIN;
@@ -88,77 +93,15 @@ void wutIrqHandler( void ){
       // Пробуем еще раз проверить частоту канала
       csmaRun();
       break;
+    case STAT_RX_START:
+      // Никакого сообщения не пришло - засыпаем
+      rfmSetMode_s( REG_OPMODE_SLEEP );
+      state = STAT_READY;
+      break;
     default:
       break;
   }
 }
-
-int8_t dataSendTry( void ){
-  int8_t rc = 0;
-  uint8_t flag = RESET; // Отправлять или нет?
-
-  // ------ Надо ли отправлять ? ------------
-  if( flags.sensCplt ){
-    if( (sendToutFlag == SET) && ((rtc.min % SEND_TOUT) == 0) ){
-      // Пришло ВРЕМЯ -> отправлять
-      flag = SET;
-    }
-    else {
-      int32_t tmp;
-      int32_t tmp0 = sensData.volume;
-      int32_t tmp1 = sensData.volumePrev;
-      int32_t tmp2 = sensData.volumePrev6;
-
-      tmp = tmp0 - tmp1;
-      if( (tmp0 != 0) && (tmp1 != 0) ){
-        // После последнего измерения значение изменилось более, чем на 10% ?
-        tmp = (tmp*10)/tmp1;
-      }
-      else {
-        // После последнего измерения значение изменилось более, чем на 10Лк ?
-        tmp /= 10;
-      }
-
-      if( tmp != 0 ){
-        flag = SET;
-      }
-      else {
-        tmp = tmp0 - tmp2;
-        if( (tmp0 != 0) && (tmp2 != 0) ){
-          // После последнеей ОЧЕРЕДНОЙ передачи значение изменилось более, чем на 10% ?
-          tmp = (tmp*10)/tmp2;
-        }
-        else {
-          // После последнеей ОЧЕРЕДНОЙ передачи значение изменилось более, чем на 10 Лк ?
-          tmp /= 10;
-        }
-        if( tmp != 0 ){
-          // После последней передачи значение изменилось более, чем на 14%
-          flag = SET;
-          sensData.volumePrev6 = sensData.volume;
-        }
-      }
-    }
-
-    if( flag ){
-      // Передача разрешена
-      if(sendToutFlag == SET){
-        sendToutFlag = RESET;
-        sensData.volumePrev6 = sensData.volume;
-      }
-      // Можно отправлять по радиоканалу
-      csmaRun();
-    }
-    else {
-    	txEnd();
-    }
-    // Сохраняем нынешнюю температуру, как предыдущую
-    sensData.volumePrev = sensData.volume;
-  }
-
-  return rc;
-}
-
 
 // Начинаем слушат эфир на предмет свободности канала
 void csmaRun( void ){
@@ -214,16 +157,17 @@ void csmaPause( void ){
 
 static void sensDataSend( void ){
   // ---- Формируем пакет данных -----
-	pkt.paySensType = DRIV_TYPE_IRCTL;
+	pkt.payDriveType = DRIV_TYPE_IRCTL;
   pkt.paySrcNode = rfm.nodeAddr;
   pkt.payMsgNum = msgNum++;
-  pkt.payBat = sensData.bat;
-  pkt.payVolume = sensData.volume;
+  pkt.payBat = driveData.bat;
+  pkt.payState = driveData.devState;
+  pkt.payCmdNum = driveData.cmdNum;
 
   // Передаем заполненую при измерении запись
   pkt.nodeAddr = BCRT_ADDR;
   // Длина payload = 1(nodeAddr) + 1(msgNum) + 1(bat) + 2(temp)
-  pkt.payLen = sizeof(tSensMsg);
+  pkt.payLen = sizeof(tDriveMsg);
 
   rfmTransmit( &pkt );
   // Таймаут до окончания передачи
