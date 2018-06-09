@@ -39,17 +39,17 @@
 #define DIO3_PORT_NUM   0
 #define DIO3_EXTI_IRQn  EXTI2_3_IRQn
 
-#define DIO4_PIN        GPIO_Pin_6
-#define DIO4_PIN_NUM    6
-#define DIO4_PORT       GPIOA
+#define DIO4_PIN        GPIO_Pin_4
+#define DIO4_PIN_NUM    4
+#define DIO4_PORT       GPIOB
 
-#define DIO5_PIN        GPIO_Pin_2
-#define DIO5_PIN_NUM    2
+#define DIO5_PIN        GPIO_Pin_5
+#define DIO5_PIN_NUM    5
 #define DIO5_PORT       GPIOB
 
 // Определения для вывода Reset модуля
-#define RFM_RST_PIN      GPIO_Pin_8
-#define RFM_RST_PIN_NUM  8
+#define RFM_RST_PIN      GPIO_Pin_3
+#define RFM_RST_PIN_NUM  3
 #define RFM_RST_PORT     GPIOB
 
 // Выводы по назначению
@@ -102,6 +102,11 @@
 #define REG_FRF_LSB     (uint8_t)0x09    // Младший байт величины несущей частоты
 
 #define REG_RCCAL       (uint8_t)0x0A    // Управление салибровкой RC-генератора
+
+#define REG_LISTEN1     (uint8_t)0x0D    // Управление режимом LISTEN
+#define REG_LISTEN2     (uint8_t)0x0E    // Длительность фазы Idle режима LISTEN
+#define REG_LISTEN3     (uint8_t)0x0F    // Длительность фазы RX режима LISTEN
+
 #define REG_PA_LVL      (uint8_t)0x11    // Настройка усилителя передатчика
 #define REG_LNA         (uint8_t)0x18    // Настройки LNA
 #define REG_RX_BW       (uint8_t)0x19    // BW контроль
@@ -143,13 +148,19 @@
 // RegOpMode
 #define REG_OPMODE_SEQOFF     (uint8_t)0x80    // Автоматический секвенсор (1- выкл, 0 - вкл)
 #define REG_OPMODE_LISTEN_ON  (uint8_t)0x40    // Режим прослушивания (1 - вкл, 0 - выкл)
-#define REG_OPMODE_LISTEN_ABR (uint8_t)0x20    // Прерывание режима прослушивания ( запись 1 - прервать )
+#define REG_OPMODE_LISTEN_ABRT (uint8_t)0x20    // Прерывание режима прослушивания ( запись 1 - прервать )
 #define REG_OPMODE_MODE       (uint8_t)0x1C    // Маска флагов режима работы
 #define REG_OPMODE_SLEEP      (uint8_t)0x00    // Sleep-mode
-#define REG_OPMODE_STDBY      (uint8_t)0x04    // Standby - режим
+#define REG_OPMODE_SNDBY      (uint8_t)0x04    // Standby - режим
 #define REG_OPMODE_FS         (uint8_t)0x08    // FS-режим
 #define REG_OPMODE_TX         (uint8_t)0x0C    // TX-режим
 #define REG_OPMODE_RX         (uint8_t)0x10    // RX-режим
+
+
+#define LISTEN_RESOL_IDLE_64    (0x01 << 6)      //Коэффициент 64мкс
+#define LISTEN_RESOL_RX_64      (0x01 << 4)      //Коэффициент 64мкс
+#define LISTEN_CRITERIA         (0x01 << 3)      //Условие срабатывания RSSIThresh + SyncAddress
+#define LISTEN_END              (0x00 << 1)      // Режим остановки
 
 // RegAfcFei
 #define REG_AFCFEI_FEI_DONE     (uint8_t)0x40    // FEI посчитан
@@ -227,9 +238,9 @@
 #define BRDCAST_ADDR      0xFF            // Широковещательный адрес
 
 // Режим работы модуля
-enum {
+enum eRfmMode{
   MODE_SLEEP,
-  MODE_STDBY,
+  MODE_SNDBY,
   MODE_FS,
   MODE_TX,
   MODE_RX,
@@ -244,7 +255,7 @@ enum {
 
 typedef struct {
   uint8_t channel;
-  uint8_t mode;
+  enum eRfmMode mode;
   uint16_t netId;
   uint8_t nodeAddr;     // Адрес нода распологается в EEPROM
   uint8_t txPwr;

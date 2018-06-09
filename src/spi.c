@@ -20,6 +20,7 @@ void spiInit(void) {
   /**SPI1 GPIO Configuration
   PA4   ------> SPI1_NSS
   PA5   ------> SPI1_SCK
+  PA6   ------> SPI1_MISO
   PA7   ------> SPI1_MOSI
   */
 #if 0		// Hardware NSS
@@ -28,20 +29,15 @@ void spiInit(void) {
   GPIOA->AFR[0] = (GPIOA->AFR[0] & ~((0xFL<<(4 * 4)) | (0xFL<<(5 * 4)) | (0xFL<<(7 * 4))));
   GPIOA->OSPEEDR |= (0x03L << (4 * 2)) | (0x03L << (5 * 2)) | (0x03L<<(7 * 2));
 #else		// Software NSS
-  GPIOA->MODER = (GPIOA->MODER & ~(GPIO_MODER_MODE5 | GPIO_MODER_MODE7))\
-                  | (GPIO_MODER_MODE5_1 | GPIO_MODER_MODE7_1);
-  GPIOA->AFR[0] = (GPIOA->AFR[0] & ~((0xFL<<(5 * 4)) | (0xFL<<(7 * 4))));
-  GPIOA->OSPEEDR |= (0x03L << (4 * 2)) | (0x03L << (5 * 2)) | (0x03L<<(7 * 2));
+  GPIOA->MODER = (GPIOA->MODER & ~(GPIO_MODER_MODE5 | GPIO_MODER_MODE6 | GPIO_MODER_MODE7))\
+                  | (GPIO_MODER_MODE5_1 | GPIO_MODER_MODE6_1 | GPIO_MODER_MODE7_1);
+  GPIOA->AFR[0] = (GPIOA->AFR[0] & ~((0xFL<<(5 * 4)) | (0xFL<<(6 * 4)) | (0xFL<<(7 * 4))));
+  GPIOA->OSPEEDR |= (0x03L << (4 * 2)) | (0x03L << (5 * 2)) | (0x03L<<(6 * 2)) | (0x03L<<(7 * 2));
   GPIOA->BSRR |= GPIO_Pin_4;
-  GPIOA->MODER = (GPIOA->MODER & ~(GPIO_MODER_MODE4))\
-                  | (GPIO_MODER_MODE4_0 );
+  GPIOA->MODER = (GPIOA->MODER & ~(GPIO_MODER_MODE4)) | (GPIO_MODER_MODE4_0 );
   // Подтяжка для режима STOP для 1 или 0 на выводе: NSS - вверх, CLS - вниз, MOSI - вниз
   GPIOA->PUPDR |= GPIO_PUPDR_PUPD4_0 | GPIO_PUPDR_PUPD5_1 | GPIO_PUPDR_PUPD7_1;
 #endif
-  //   PB4   ------> SPI1_MISO
-  GPIOB->MODER = (GPIOB->MODER & ~(GPIO_MODER_MODE4)) | GPIO_MODER_MODE4_1;
-  GPIOB->AFR[0] = (GPIOB->AFR[0] & ~((0xFL<<(4 * 4))));
-  GPIOB->OSPEEDR |= (0x03L << (4 * 2));
 
   /* Enable the peripheral clock SPI1 */
   RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;

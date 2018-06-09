@@ -65,10 +65,10 @@ void rfmInit( void ){
   // Иниализируем интерфейс SPI
   spiInit();
 
-  rfDataInit();
   // Настройка выходов DIO_RFM и прерывания от DIO0 и DIO4 (RSSI)
   dioInit();
 
+  rfDataInit();
   // Начальный сброс модуля
   rfmRst();
   // Установка начальных значений регистров
@@ -276,18 +276,23 @@ static inline void dioInit( void ){
 
   //---- Инициализация выводов для DIO0 - DIO5 RFM69: вход, 2МГц, без подтяжки
 
-  //Dio0 - PA0, Dio1 - PA1, Dio2 - PA8, Dio3 - PA3, Dio4 - PA6
-  GPIOA->OTYPER &= ~(GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_8 | GPIO_Pin_3 | GPIO_Pin_6);
-  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (8 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) )) |
-        (0x1 | (0x1 << (1 * 2)) | (0x1 << (8 * 2)) | (0x1 << (3 * 2)) | (0x1 << (6 * 2)) );
-  GPIOA->PUPDR &= ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (8 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) );
-  GPIOA->MODER &= ~(0x3 | (0x3 << (1 * 2)) | (0x3 << (8 * 2)) | (0x3 << (3 * 2)) | (0x3 << (6 * 2)) );
+  //Dio0 - PA0, Dio1 - PA1, Dio2 - PA8, Dio3 - PA3
+  DIO0_PORT->OTYPER &= ~(DIO0_PIN | DIO1_PIN | DIO2_PIN | DIO3_PIN);
+  DIO0_PORT->OSPEEDR = (DIO0_PORT->OSPEEDR & ~((0x3 << (DIO0_PIN_NUM * 2)) | (0x3 << (DIO1_PIN_NUM * 2)) |\
+                                      (0x3 << (DIO2_PIN_NUM * 2)) | (0x3 << (DIO3_PIN_NUM * 2)) )) | \
+                   ((0x1 << (DIO0_PIN_NUM * 2)) | (0x1 << (DIO1_PIN_NUM * 2)) | (0x1 << (DIO2_PIN_NUM * 2)) |\
+                   (0x1 << (DIO3_PIN_NUM * 2)) );
+  DIO0_PORT->PUPDR &= ~((0x3 << (DIO0_PIN_NUM * 2)) | (0x3 << (DIO1_PIN_NUM * 2)) | (0x3 << (DIO2_PIN_NUM * 2)) |\
+                   (0x3 << (DIO3_PIN_NUM * 2)) );
+  DIO0_PORT->MODER &= ~((0x3 << (DIO0_PIN_NUM * 2)) | (0x3 << (DIO1_PIN_NUM * 2)) | (0x3 << (DIO2_PIN_NUM * 2)) |\
+                   (0x3 << (DIO3_PIN_NUM * 2)) );
 
-  // Dio5 - PB2
-  GPIOB->OTYPER &= ~(GPIO_Pin_2);
-  GPIOB->OSPEEDR = (GPIOB->OSPEEDR & ~(0x3 << (2 * 2))) | (0x1 << (2 * 2));
-  GPIOB->PUPDR &= ~(0x3 << (2 * 2));
-  GPIOB->MODER &= ~(0x3 << (2 * 2));
+  //  Dio4 - PB4, Dio5 - PB5
+  DIO4_PORT->OTYPER &= ~(DIO4_PIN | DIO5_PIN);
+  DIO4_PORT->OSPEEDR = (DIO4_PORT->OSPEEDR & ~((0x3 << (DIO4_PIN_NUM * 2)) | (0x3 << (DIO5_PIN_NUM * 2)))) |\
+                     ((0x1 << (DIO4_PIN_NUM * 2)) | (0x1 << (DIO5_PIN_NUM * 2)));
+  DIO4_PORT->PUPDR &= ~((0x3 << (DIO4_PIN_NUM * 2)) | (0x3 << (DIO5_PIN_NUM * 2)));
+  DIO4_PORT->MODER &= ~((0x3 << (DIO4_PIN_NUM * 2)) | (0x3 << (DIO5_PIN_NUM * 2)));
 
   // Инициализация прерывания от DIO0 и DI03
   // Select Dio0-Port for Dio0-Pin extended interrupt by writing 0000 in EXTI0
@@ -313,7 +318,7 @@ static inline void rfDataInit( void ){
   uint16_t tmp;
 
   // Инициализация структуры Rfm
-  rfm.mode = MODE_STDBY;
+  rfm.mode = MODE_START;
   // Считываем из EEPROM параметры
   if( (tmp = eeBackup.rfmNetId) == 0){
     // В еепром ничего не записанно
@@ -335,6 +340,7 @@ static inline void rfmRegSetup( void ){
   rfmRegWrite( REG_OPMODE,  REG_OPMODE_SLEEP );
   while( (rfmRegRead(REG_FLAG1) & REG_IF1_MODEREADY) != REG_IF1_MODEREADY)
   {}
+  rfm.mode = MODE_SLEEP;
 
   // Калибровка RC-генратора
   rfmRcCal();
@@ -392,4 +398,28 @@ static inline void rfmRegSetup( void ){
   rfmRegWrite( REG_FIFO_THRESH, 0x8F );
   // Настройка DAGC
   rfmRegWrite( REG_TEST_DAGC, 0x30 );
+}
+
+void rfmListenSetup( void ){
+
+  rfmRegWrite( REG_LISTEN1, LISTEN_RESOL_IDLE_64 | LISTEN_RESOL_RX_64 | LISTEN_CRITERIA | LISTEN_END );
+  rfmRegWrite( REG_LISTEN2, 0x03 );
+  rfmRegWrite( REG_LISTEN3, 0x03 );
+}
+
+void rfmListenStart( void ){
+  if( rfm.mode != MODE_SNDBY){
+    rfmSetMode_s( MODE_SNDBY );
+  }
+  rfmRegWrite( REG_OPMODE, REG_OPMODE_LISTEN_ON | REG_OPMODE_SNDBY );
+}
+
+void rfmListenStop( void ){
+/* 1. Program RegOpMode with ListenOn=0, ListenAbort=1, and the desired setting
+ *    for the Mode bits (Sleep, Stdby, FS, Rx or Tx mode) in a single SPI access
+ * 2. Program RegOpMode with ListenOn=0, ListenAbort=0, and the desired setting
+ *    for the Mode bits (Sleep, Stdby, FS, Rx or Tx mode) in a second SPI access
+ */
+  rfmRegWrite( REG_OPMODE, ~(REG_OPMODE_LISTEN_ON) & (REG_OPMODE_LISTEN_ABRT | REG_OPMODE_SLEEP) );
+  rfmRegWrite( REG_OPMODE, ~(REG_OPMODE_LISTEN_ON | REG_OPMODE_LISTEN_ABRT) & REG_OPMODE_SLEEP );
 }

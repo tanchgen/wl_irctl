@@ -103,28 +103,23 @@ int main(int argc, char* argv[])
 
 // ################## ДЛЯ ТЕСТИРОВАНИЯ ################################
   // Отправляем пакет на ИК 
-  protoPktCod();
+//  protoPktCod();
+//
+//  irPktSend();
 
-  irPktSend();
-
-  while(1)
-  {}
+//  while(1)
+//  {}
 // ####################################################################
 
   rfmInit();
   batInit();
-//  irRxInit();
-//  irTxInit();
-
-  // В рабочем режиме Засыпаем по выходу из перывания
-  #if STOP_EN
-    SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
-  #endif
 
   // В рабочем режиме включаем будильник
   rtcWorkInit();
+#if STOP_EN
   // В рабочем режиме включаем засыпание по выходу из прерывания
   SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
+#endif
   // Запустили измерения
   mesure();
 //  GPIOB->MODER = (GPIOB->MODER & ~GPIO_MODER_MODE3) | GPIO_MODER_MODE3_0;

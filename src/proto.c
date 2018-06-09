@@ -34,13 +34,14 @@ tFieldArr newProtoField = {
     ir0Pkt
 };
 
-// Режим работы кондиционера
+// Режим работы кондиционера по умолчанию
 tAcData acData = {
     ON,             // Включить
     AC_MODE_COOL,           // Охлаждение
     TEMP_23,              // 23гр.Ц
     FAN_SPEED_AUTO,  // Скорость - авто
-    SWING_POS_1
+    SWING_POS_1,
+    AC_ERR_OK
 };
 
 // ###################################### ОПРЕДЕЛЕННЫЕ ПРОТОКОЛЫ ###################################
@@ -49,7 +50,7 @@ tAcData acData = {
 uint16_t anikHeader0Field[2] = {344, 172};
 // Длительности полей паузы
 uint16_t anikMidPauseField[2] = {25, 763};
-uint16_t anikMidPause2Field = 52;
+uint16_t anikMidPause2Field = 25;
 
 // Описание ИК-пакета протокола AERONIK
 tFieldArr anikProtoField[6] = {
@@ -334,46 +335,50 @@ uint8_t protoDefCod( tProtoDesc * prDesc ){
 
 void protoNonDefCod( void ){
   // Сначала копируем НАЧАЛЬНЫЙ пакет в массив полей для отправки
-  for( uint8_t i = 0; i < irRxIndex; i++ ){
+  for( uint8_t i = 0; i < field0Num; i++ ){
     irPkt[i] = ir0Pkt[i];
   }
   // Теперь переписываем поля в соответсвии с параметрами
-  for( eParam i = PARAM_ONOFF; i <= PARAM_SWING; i++ ){
+  for(  uint8_t k = PARAM_ONOFF; k <= PARAM_SWING; k++){
     uint8_t value;
     uint8_t sellNum;
 
-    value = acParamValue( i );
+    value = acParamValue( k );
     /* Если какой-то из параметров отличается от параметров НАЧАЛЬНОГО пакета - устанавливаем его и
      * устанавливаем его и следующие НЕ меняем
      */
 
-    if( i == PARAM_ONOFF ){
-      i = PARAM_CRC;
+    if( k == PARAM_ONOFF ){
+      if( value == OFF){
+        k = PARAM_CRC;
+      }
+      else {
+        continue;
+      }
     }
-    else if ( i == PARAM_MODE ){
+    else if ( k == PARAM_MODE ){
       if(value != AC_MODE_COOL){
-        i = PARAM_CRC;
+        k = PARAM_CRC;
       }
     }
-    else if( i == PARAM_TEMP ){
+    else if( k == PARAM_TEMP ){
       if( value != TEMP_23 ){
-        i = PARAM_CRC;
+        k = PARAM_CRC;
       }
     }
-    else if( i == PARAM_FAN ){
+    else if( k == PARAM_FAN ){
       if( value != FAN_SPEED_AUTO ){
-        i = PARAM_CRC;
+        k = PARAM_CRC;
       }
     }
 
-    sellNum = paramfieldBegin[i] + value;
+    sellNum = paramfieldBegin[k] + value;
 
     // Перебираем отличия в полях
     for( uint8_t j = 0; j < rxFieldQuant[sellNum]; j++) {
       // Есть отличия в полях
       irPkt[ (pIrField[sellNum])[j].fieldNum ] = (pIrField[sellNum])[j].fieldDur;
     }
-
   }
 }
 

@@ -87,12 +87,12 @@ void RTC_IRQHandler(void){
     wutSet(10000);
     // Включаем прием
     rfmSetMode_s( REG_OPMODE_RX );
-    state = STAT_RX_START;
+    state = STAT_LISTEN_START;
   }
 // =============== Сработал будильник передачи =======================
   else if( RTC->ISR & RTC_ISR_ALRAF ){
-    while( (RTC->ISR & RTC_ISR_RSF) == 0 )
-    {}
+//    while( (RTC->ISR & RTC_ISR_RSF) == 0 )
+//    {}
 //    uint32_t dr = RTC->DR;
 //    (void)dr;
 //    uint32_t tr0 = RTC->TR;

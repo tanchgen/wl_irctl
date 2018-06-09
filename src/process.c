@@ -93,7 +93,7 @@ void wutIrqHandler( void ){
       // Пробуем еще раз проверить частоту канала
       csmaRun();
       break;
-    case STAT_RX_START:
+    case STAT_LISTEN_START:
       // Никакого сообщения не пришло - засыпаем
       rfmSetMode_s( REG_OPMODE_SLEEP );
       state = STAT_READY;
