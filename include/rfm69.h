@@ -302,7 +302,7 @@ typedef union {
 
 
 typedef struct {
-  uint8_t nodeAddr;       // Адрес получателя пакета
+  uint8_t nodeAddr;     // Адрес получателя пакета
   uint8_t payLen;         // Длина пакета (payload)
   uPayload payLoad;                 // Буфер получаемых от RFM69 данных
 #define payBuf       payLoad.u8
@@ -322,7 +322,6 @@ typedef struct {
 extern tPkt pkt;
 
 extern tRfm  rfm;
-
 
 uint8_t rfmRegRead( uint8_t add_r );
 void rfmRegWrite( uint8_t addr, uint8_t data );
@@ -345,5 +344,7 @@ void rfmChannelSet( uint16_t channel );
 void rfmFeiStart( void );
 void rfmFeiSet( void );
 
+void rfmListenStart( void );
+void rfmListenStop( void );
 
 #endif /* RFM69_H_ */

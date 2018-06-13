@@ -33,7 +33,6 @@ uint32_t GPIOA_MODER;
 uint32_t GPIOB_MODER;
 uint32_t GPIOC_MODER;
 
-//extern uint8_t regBuf[];
 uint8_t risCount = 0;
 uint8_t failCount = 0;
 
@@ -122,6 +121,9 @@ int main(int argc, char* argv[])
 #endif
   // Запустили измерения
   mesure();
+  // Передаем состояние, как инициализационный пакет
+  csmaRun();
+
 //  GPIOB->MODER = (GPIOB->MODER & ~GPIO_MODER_MODE3) | GPIO_MODER_MODE3_0;
   saveContext();
 #if STOP_EN

@@ -57,8 +57,9 @@ typedef enum {
   STAT_DRIV_SEND,
   STAT_RF_CSMA_START,
   STAT_RF_CSMA_PAUSE,
+  STAT_TX_START,
+  STAT_TX_STOP,
   STAT_LISTEN_START,
-  STAT_TX_START
 } eState;
 
 // Структура сохраняемых в EEPROM параметров

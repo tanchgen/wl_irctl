@@ -15,7 +15,7 @@ void rfmFreqSet( uint32_t freq );
 
 tRfm  rfm;
 tPkt pkt;            // Структура принятого пакета
-//extern uint8_t tmpVal;
+//volatile uint8_t regVal[0x40];
 
 // Определение значения частоты трансивера для регистров RFM69HW
 #define CHANN_FREQ( c ) (((((int32_t)(c) - 3 ) * CHANN8_FREQ_STEP)) / FR_STEP) + CHANN8_3_FREQ

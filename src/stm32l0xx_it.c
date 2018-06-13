@@ -177,12 +177,23 @@ void EXTI0_1_IRQHandler(void)
         wutSet( 50000 );
         state = STAT_DRIV_SEND;
       }
+      rfmListenStop();
+      state = STAT_READY;
     }
+
   }
   else if( rfm.mode == MODE_TX ) {
-    // Отправили пакет с температурой
-  	wutStop();
-  	txEnd();
+    // Отправили какой-то пакет
+    txEnd();
+    if( connectFlag == FALSE ){
+      // Если соединение еще не установленно
+      // Через 50мс будем включать прослушивание канала
+      wutSet(50000);
+      state = STAT_TX_STOP;
+    }
+    else {
+      wutStop();
+    }
     if( connectFlag == FALSE ){
       txToutSet();
     }
@@ -350,25 +361,25 @@ void TIM2_IRQHandler( void ){
 }
 
 inline void txToutSet( void ){
-  if( connectCount > 39 ){
+  if( connectCount == 39 ){
     secToutTx = 1;
     minToutTx = 6;
   }
   else {
     connectCount++;
-    if( connectCount > 30){
+    if( connectCount == 30){
       secToutTx = 1;
       minToutTx = 2;
     }
-    else if( connectCount > 20){
+    else if( connectCount == 20){
       // Переводим будильник на минутный интервал
       setAlrmSecMask( RESET );
       secToutTx = 1;
       minToutTx = 1;
     }
-    else if( connectCount > 10){
-      secToutTx = 1;
-      minToutTx = 30;
+    else if( connectCount == 10){
+      secToutTx = 30;
+      minToutTx = 1;
     }
 
   }
