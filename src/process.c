@@ -59,15 +59,15 @@ void wutIrqHandler( void ){
 
         // Выключаем маску внешнего прерывания от КНОПКИ
         EXTI->IMR |= BTN_PIN;
+        state = STAT_READY;
+        break;
       }
-      state = STAT_READY;
-      break;
     case STAT_IR_RX_STOP:
       // Выключаем маску внешнего прерывания от ИК-приемника
       EXTI->IMR |= IR_RX_PIN;
       state = STAT_READY;
       break;
-    case STAT_DRIV_SEND:
+    case STAT_RF_RX_OK:
       csmaRun();
       break;
     case STAT_RF_CSMA_START:
@@ -97,14 +97,14 @@ void wutIrqHandler( void ){
       break;
     case STAT_TX_STOP:
       // Включаем прослушивание канала
-      rfmListenStart();
+      rfmSetMode_s( REG_OPMODE_RX );
       // Таймаут - 20мс
       wutSet(20000);
       state = STAT_LISTEN_START;
       break;
     case STAT_LISTEN_START:
       // Никакого сообщения не пришло - засыпаем
-      rfmListenStop();
+      rfmSetMode_s( REG_OPMODE_SLEEP );
       state = STAT_READY;
       break;
     default:

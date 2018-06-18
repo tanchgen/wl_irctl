@@ -190,17 +190,20 @@ void irRxInit( void ){
   // Инициализация таймера Модулирующего сигнала для ОБУЧЕНИЯ
   irModulLearnTimInit();
 
-  rxStat = RX_STAT_0;
-  pIrPkt = ir0Pkt;
+  if( field0Num == 0 ){
+    // Обучение еще не проходило (в EEPROM не было записано) ->  начнем обучение с начала
+    rxStat = RX_STAT_0;
+    pIrPkt = ir0Pkt;
+  }
 
-  // =========== Для тестирования =====================
-  // PA11 на вывод данных
-  //---- Инициализация выхода для: Выход, 2МГц, без подтяжки ---
-  GPIOA->OTYPER &= ~(GPIO_Pin_11);
-  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 << (11 * 2))) | (0x1 << (11 * 2));
-  GPIOA->PUPDR = (GPIOA->PUPDR & ~(0x3 << (11 * 2)));
-  GPIOA->MODER = (GPIOA->MODER & ~(0x3<< (11 * 2))) | (0x1 << (11 * 2));
-  GPIOA->BSRR |= GPIO_Pin_11;
+// =========== Для тестирования =====================
+// PA11 на вывод данных
+//---- Инициализация выхода для: Выход, 2МГц, без подтяжки ---
+//  GPIOA->OTYPER &= ~(GPIO_Pin_11);
+//  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 << (11 * 2))) | (0x1 << (11 * 2));
+//  GPIOA->PUPDR = (GPIOA->PUPDR & ~(0x3 << (11 * 2)));
+//  GPIOA->MODER = (GPIOA->MODER & ~(0x3<< (11 * 2))) | (0x1 << (11 * 2));
+//  GPIOA->BSRR |= GPIO_Pin_11;
 
 }
 
@@ -221,6 +224,11 @@ void irRxProcess( void ){
     *(pIrPkt + irRxIndex++) = c;
   }
   else if( c == 0){
+#if STOP_EN
+    // Выключаем засыпание по ВЫХОДУ ИЗ ПРЕРЫВАНИЯ до окончания приема ИК-пакета
+    SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+#endif
+
     TIM2->CR1 |= TIM_CR1_CEN;
     EXTI->RTSR |= IR_RX_PIN;
   }
@@ -400,29 +408,13 @@ void learnReset( void ){
   uint32_t * p32;
   uint32_t * eep32;
 
-  if( (btn.longPressCnt == 1)){
-    // Очищаем  сохраненные изменяемые поля
-    p32 = (uint32_t *)(irDiffField + rxFieldQuant[0]);
-    eep32 = (uint32_t *)(eeIrProtoBak.diffField + rxFieldQuant[0]);
-    for(uint8_t i = 0; i < (sizeof(irDiffField)/4 - rxFieldQuant[0]); i++){
-      *(p32+i) = 0;
-      *(eep32+i) = 0;
-    }
-
-    for(uint8_t i = 1; i < (sizeof(rxFieldQuant) - 1); i++){
-      // Очищаем список указателей на измененные поля
-      pIrField[i] = NULL;
-      eeIrProtoBak.pfldDiff[i] = NULL;
-      // Очищаем список длин последовательностей измененных полей
-      rxFieldQuant[i] = 0;
-      eeIrProtoBak.fldDiffQuant[i] = 0;
-    }
-    pIrDiffField = irDiffField + rxFieldQuant[0];
-  }
   if( (onOffFlag != ON) || (btn.longPressCnt > 1) ){
     // Обучение сначала
     rxStat = RX_STAT_0;
     onOffFlag = -1;
+    pIrPkt = ir0Pkt;
+    protoName = PROTO_NONAME;
+
     btn.longPressCnt = 0;
 
     // Очищаем  сохраненные изменяемые поля
@@ -442,6 +434,25 @@ void learnReset( void ){
     buzzerLongPulse();
     mDelay(125);
   }
+  else {
+    // Очищаем  сохраненные изменяемые поля - все, кроме ON/OFF
+    p32 = (uint32_t *)(irDiffField + rxFieldQuant[0]);
+    eep32 = (uint32_t *)(eeIrProtoBak.diffField + rxFieldQuant[0]);
+    for(uint8_t i = 0; i < (sizeof(irDiffField)/4 - rxFieldQuant[0]); i++){
+      *(p32+i) = 0;
+      *(eep32+i) = 0;
+    }
+
+    for(uint8_t i = 1; i < sizeof(rxFieldQuant); i++){
+      // Очищаем список указателей на измененные поля
+      pIrField[i] = NULL;
+      eeIrProtoBak.pfldDiff[i] = NULL;
+      // Очищаем список длин последовательностей измененных полей
+      rxFieldQuant[i] = 0;
+      eeIrProtoBak.fldDiffQuant[i] = 0;
+    }
+    pIrDiffField = irDiffField + rxFieldQuant[0];
+  }
   // Очищаем  сохраненные изменяемые поля
 
   // обнуляем счетчик нажатий
@@ -451,11 +462,21 @@ void learnReset( void ){
 }
 
 uint8_t irPktSend( void ){
+  uint8_t rec = 0;
 
   if(field0Num == 0){
     // Еще не прошел обучение - неизвестно, что отправлять
-    return 1;
+    rec = 1;
+    goto exitLabel;
   }
+  if( (btn.stat != BTN_OFF) || (state == STAT_BTN_DBNC) ){
+    // Кнопка нажата: возможно, идет процесс обучения - параметры протокола могут изменится
+    rec = 1;
+    goto exitLabel;
+  }
+
+  // Выключаем прерывание от КНОПКИ
+  EXTI->IMR &= ~(BTN_PIN);
 
   txFieldCount = 0;
 
@@ -479,11 +500,21 @@ uint8_t irPktSend( void ){
 
   // Включаем вывод таймера на пин порта
   IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
+
+#if STOP_EN
+  // Выключаем засыпание по Выходу из прерывания до окончания передачи ИК-пакета
+  SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+#endif
+
   // Запускаем таймер модулирующей
   TIM22->CR1 |= TIM_CR1_CEN;
   TIM22->EGR = TIM_EGR_UG;
 
-  return 0;
+  // Включаем прерывание от КНОПКИ
+  EXTI->IMR |= BTN_PIN;
+
+exitLabel:
+  return rec;
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`

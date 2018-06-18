@@ -109,7 +109,7 @@ typedef struct {
   tFieldArr * protoFieldArr;                // Массив полей заголовка
   const tProtoPkt0 * protoFieldArr0;       // Указатель структуры массива полей НАЧАЛЬНОГО заголовка
   const tParamPos * paramPos;
-  const tCrc * crc;
+  uint8_t (*crc)( void );
   uint8_t markDur;                // Длительность маркера (импульса)
   uint8_t space0Dur;              // Длительность паузы "0"
   uint8_t space1Dur;              // Длительность паузы "1"

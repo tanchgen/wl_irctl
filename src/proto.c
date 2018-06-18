@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include "stm32l0xx.h"
+#include "button.h"
 #include "ir.h"
 #include "proto.h"
 
@@ -18,8 +19,8 @@
 // Установка параметров для Определенного
 void protoDefParamSet( uint16_t * arr, const tParamPos * pprm );
 int8_t areaFind( tFieldArr * pFldArr, uint8_t *idx );
-uint8_t crcCod( uint16_t * arr, uint8_t len, uint8_t mod );
 uint8_t acParamValue( uint8_t param );
+
 
 //
 eProtoName protoName = PROTO_NONAME;
@@ -40,7 +41,7 @@ tAcData acData = {
     AC_MODE_COOL,           // Охлаждение
     TEMP_23,              // 23гр.Ц
     FAN_SPEED_AUTO,  // Скорость - авто
-    SWING_POS_1,
+    SWING_POS_AUTO,
     AC_ERR_OK
 };
 
@@ -50,7 +51,7 @@ tAcData acData = {
 uint16_t anikHeader0Field[2] = {344, 172};
 // Длительности полей паузы
 uint16_t anikMidPauseField[2] = {25, 763};
-uint16_t anikMidPause2Field = 25;
+uint16_t anikMidPause2Field = 52;
 
 // Описание ИК-пакета протокола AERONIK
 tFieldArr anikProtoField[6] = {
@@ -63,17 +64,40 @@ tFieldArr anikProtoField[6] = {
 };
 
 // НУЛЕВОЙ пакет AERONIK
-const tProtoPkt0 anikPkt0 = { 5, { 0x0709, 0x5040, 0x0002, 0x2000, 0xc000 }};;
+const tProtoPkt0 anikPkt0 = { 5, { 0x0709, 0x5040, 0x0002, 0x2000, 0xc000 }};
 const tParamPos anikParams[6] = {
-    {0X1, 3},     // ONOFF
-    {0x7, 0},     // MODE
-    {0xF, 8},     // TEMP
-    {0x2, 4},     // FAN
-    {0xF, 35},    // SWING
-    {0xF, 76}     // CRC
+    {0X1, 3},        // ONOFF
+    {0x7, 0},        // MODE
+    {0xF, 8},        // TEMP
+    {0x2, 4},        // FAN
+    {0x7, (3*16)},   // SWING
+    {0xF, (4*16+12)} // CRC
 };
+// Функция расчета CRC для протокола AERONIK
+uint8_t anikCrc( void ){
+  uint8_t crc = 0;
+  uint8_t mask = 0;
+  const uint8_t module = 4;
+  const uint8_t len = 9;
 
-const tCrc anikCrc = { 9, 4 };
+  mask = (1 << module) - 1;
+
+  for( uint8_t i = 0; i < len; i++){
+    uint8_t tmp;
+
+    tmp = irPktArr[ i * module / 16] >> ( (i * module) % 16);
+    if( i == 1 ){
+      // Выключаем FAN из контрольной суммы
+      tmp &= 0xC;
+    }
+    crc += tmp & mask;
+  }
+  while( crc > 0xf ){
+    crc = (crc & 0xf) + ((crc & 0xf0) >> 4);
+  }
+
+  return crc;
+}
 
 
 //============== Опитсание протокола SAMSUNG =============================
@@ -91,7 +115,7 @@ tFieldArr smsgProtoField[5] = {
 };
 
 // НУЛЕВОЙ пакет AERONIK
-const tProtoPkt0 smsgPkt0 = { 5, { 0x0709, 0x5040, 0x0002, 0x2000, 0xc000 }};;
+const tProtoPkt0 smsgPkt0 = { 5, { 0x0709, 0x5040, 0x0002, 0x2000, 0xc000 }};
 
 const tParamPos smsgParams[5] = {
     {0X1, 3},     // ONOFF
@@ -101,7 +125,28 @@ const tParamPos smsgParams[5] = {
     {0xF, 16}     // SWING
 };
 
-const tCrc smsgCrc = { 4, 8 };
+// Функция расчета CRC для протокола SAMSUNG
+uint8_t smsgCrc( void ){
+  uint8_t crc = 0;
+//  uint8_t mask = 0;
+//  const uint8_t mod = 4;
+//  const uint8_t len = 9;
+//
+//  mask = (1 << mod) - 1;
+//
+//  for( uint8_t i = 0; i < len; i++){
+//    if( i == 3 ){
+//      continue;
+//    }
+//    crc += (irPktArr[ i * mod / 16] >> ( (i * mod) % 16) ) & mask;
+//  }
+//  while( crc > 0xf ){
+//    crc = (crc & 0xf) + ((crc & 0xf0) >> 4);
+//  }
+
+  return crc;
+}
+
 
 /*
  * typedef struct {
@@ -117,8 +162,8 @@ const tCrc smsgCrc = { 4, 8 };
  */
 // Описание протоколов
 tProtoDesc protoDesc[PROTO_NUM] = {
-    {anikProtoField, &anikPkt0, anikParams, &anikCrc, 25, 21, 61, 0},       // Протокол AERONIK
-    {smsgProtoField, &smsgPkt0, smsgParams, &smsgCrc, 18, 18, 180, 0},      // Протокол SAMSUNG
+    {anikProtoField, &anikPkt0, anikParams, anikCrc, 25, 21, 61, 0},       // Протокол AERONIK
+    {smsgProtoField, &smsgPkt0, smsgParams, smsgCrc, 18, 18, 180, 0},      // Протокол SAMSUNG
     {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Daikin
     {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Panasonic
     {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Mitsubishi
@@ -237,34 +282,23 @@ void protoDefParamSet( uint16_t * arr, const tParamPos * pprm ){
   }
 }
 
-/* Расчет контрольной суммы для поля данных
- * arr - массив данных
- * mod - длина CRC в битах
- * len - длина расчитываемых данных в длинах "mod":
- * Например: Длина arr - 32бита, mod - 8бит, следовательно, len = 4
- */
-uint8_t crcCod( uint16_t * arr, uint8_t len, uint8_t mod ){
-  uint8_t crc = 0;
-  uint8_t mask = 0;
-
-  mask = (1 << mod) - 1;
-
-  for( uint8_t i = 0; i < len; i++){
-    crc += (arr[ i * mod / 16] >> ( (i * mod) % 16) ) & mask;
-  }
-  while( crc > 0xf ){
-    crc = (crc & 0xf) + ((crc & 0xf0) >> 4);
-  }
-
-  return crc;
-}
-
 // Кодирование пакета для отправки по ИК
 uint8_t protoPktCod( void ){
+  uint8_t rec = 0;
+
   if(field0Num == 0){
     // Еще не прошел обучение - неизвестно, что отправлять
-    return 1;
+    rec = 1;
+    goto exitLabel;
   }
+  if( (btn.stat != BTN_OFF) || (state == STAT_BTN_DBNC) ){
+    // Кнопка нажата: возможно, идет процесс обучения - параметры протокола могут изменится
+    rec = 1;
+    goto exitLabel;
+  }
+
+  // Выключаем прерывание от КНОПКИ
+  EXTI->IMR &= ~(BTN_PIN);
 
   // Формируем сырой пакет для передачи по ИК
   if( protoName == PROTO_NONAME){
@@ -273,7 +307,12 @@ uint8_t protoPktCod( void ){
   else {
     protoDefCod( &protoDesc[protoName] );
   }
-  return 0;
+
+  // Включаем прерывание от КНОПКИ
+  EXTI->IMR |= BTN_PIN;
+
+exitLabel:
+  return rec;
 }
 
 
@@ -282,7 +321,7 @@ uint8_t protoDefCod( tProtoDesc * prDesc ){
   uint8_t rec = 0;
   int8_t areaNum;
   uint8_t i;
-  uint8_t bitIdx = 0;
+//  uint8_t bitIdx = 0;
 
   tFieldArr * pField = prDesc->protoFieldArr;
 
@@ -311,20 +350,21 @@ uint8_t protoDefCod( tProtoDesc * prDesc ){
       irPkt[i] = pField[areaNum].field[pi];
     }
     else {
+      pi >>= 1; // Один бит состоит из двух полей
       // Перобразуем битовую кодировку в длительности импульсов и пауз
       if( (i & 0x1) == 0 ){
         // Импульс (Марка)
         irPkt[i] = prDesc->markDur;
       }
-      else if( (irPktArr[bitIdx/16] & (1 << (bitIdx % 16)) ) == 0){
+      else if( (pField[areaNum].field[pi/16] & (1 << (pi % 16)) ) == 0){
         // Пауза бита "0"
         irPkt[i] = prDesc->space0Dur;
-        bitIdx++;
+//        bitIdx++;
         }
       else {
         // Пауза бита "1"
         irPkt[i] = prDesc->space1Dur;
-        bitIdx++;
+//        bitIdx++;
       }
     }
   }
@@ -404,9 +444,10 @@ uint8_t acParamValue( uint8_t param ){
       break;
     case PARAM_CRC:
       if(protoName != PROTO_NONAME ){
-        const tCrc * crc = protoDesc[protoName].crc;
+//        const tCrc * crc = protoDesc[protoName].crc;
         // Только для определенного протокола - Высчитываем CRC
-        value = crcCod( irPktArr, crc->len, crc->mod );
+//        value = crcCod( irPktArr, crc->len, crc->mod );
+        value = protoDesc[protoName].crc();
       }
       else {
         value = 0;
@@ -427,7 +468,10 @@ uint8_t irProtoRestore( void ){
     // Восстанавливать нечего - ничего не сохранено
     goto restEnd;
   }
+  rxStat = RX_STAT_ONOFF;
   onOffFlag = ON;
+  pIrPkt = irPkt;
+
   if( (protoName = eeIrProtoBak.protoName) != PROTO_NONAME ){
     // ОПРЕДЕЛЕННЫЙ протокол - больше восстанавливать нечего
     goto restEnd;

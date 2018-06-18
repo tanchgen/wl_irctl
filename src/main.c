@@ -50,6 +50,9 @@ static inline void sysClockInit(void);
 static inline void startPwrInit( void );
 static inline void eepromUnlock( void );
 
+
+void acCtrlTest( void );
+
 // ----- main() ---------------------------------------------------------------
 
 int main(int argc, char* argv[])
@@ -82,13 +85,14 @@ int main(int argc, char* argv[])
   // Включаем обработку входа ИК-приемника
   EXTI->IMR |= IR_RX_PIN;
 
-
-  // Засыпаем до нажатия на кнопку
+  saveContext();
+// Засыпаем до нажатия на кнопку
   while( btn.tOnSec == 0 ) {
 #if STOP_EN
     __WFI();
 #endif
   }
+  restoreContext();
 
   // Ждем определения протокола (обучения)
   while( field0Num == 0 )
@@ -101,11 +105,8 @@ int main(int argc, char* argv[])
 
 
 // ################## ДЛЯ ТЕСТИРОВАНИЯ ################################
-  // Отправляем пакет на ИК 
-//  protoPktCod();
+//  acCtrlTest();
 //
-//  irPktSend();
-
 //  while(1)
 //  {}
 // ####################################################################
@@ -135,7 +136,7 @@ int main(int argc, char* argv[])
   while (1){
 //  	GPIOB->ODR ^= GPIO_Pin_3;
 #if STOP_EN
-    wfiFaultCount++;
+//    wfiFaultCount++;
 #endif
     mDelay(1000);
   }
@@ -214,7 +215,7 @@ static inline void eepromUnlock( void ){
 * Date:         09-23-16
 *******************************************************************************/
 void restoreContext(void){
-#if STOP_EN
+#if 1 //STOP_EN
 	// disable interrupts if they weren't already disabled
 	__disable_irq();
 		// Enable GPIO clocks
@@ -246,7 +247,7 @@ void restoreContext(void){
 * Date:         09-23-16
 *******************************************************************************/
 void saveContext(void){
-#if STOP_EN
+#if 1 //STOP_EN
 
 	// disable interrupts
 	__disable_irq();
@@ -263,8 +264,8 @@ void saveContext(void){
 
 		// Configure GPIO port pins in Analog Input mode
 		// PA0 - DIO0 interrupt
-		GPIOA->MODER = 0xEBFF30FC;
-		GPIOB->MODER |= 0xFFFFF3FF;
+		GPIOA->MODER = 0x2BFF300C;
+		GPIOB->MODER |= 0xFFFFCF3F;
 
 		// Disable GPIO clocks
 		RCC->IOPENR &= ~( RCC_IOPENR_GPIOAEN | RCC_IOPENR_GPIOBEN );
@@ -273,4 +274,47 @@ void saveContext(void){
 }
 
 
+void acCtrlTest( void ){
+for(uint8_t i = 0; i < 32; i++ ){
+  switch (i){
+    case 0:
+      // Включаем кондиционер
+      acData.onoff = OFF;
+      break;
+    case 1:
+      // Выключаем кондиционер
+      acData.onoff = ON;
+      break;
+    case 2 ... 6:
+      // Перебераем режимы MODE
+      acData.mode = i - 2;
+      break;
+    case 7 ... 21:
+      acData.mode = 1;
+      // Перебераем температуру 16-30 гр.Ц
+      acData.temp = i - 7;
+      break;
+    case 22 ... 25:
+      // Восстанавливаем температуру 23 гр.Ц
+      acData.temp = 7;
+      // Перебераем скорость вентилятора
+      acData.fan = i - 22;
+      break;
+    case 27 ... 31:
+      // Перебераем скорость вентилятора
+      acData.fan = 0;
+      // Перебераем положение задвижки
+      acData.swing = i - 27;
+      break;
+    default:
+      break;
+  }
+  // Отправляем пакет на ИК
+  protoPktCod();
+  irPktSend();
+  mDelay(5000);
+}
+
+
+}
 // ----------------------------------------------------------------------------

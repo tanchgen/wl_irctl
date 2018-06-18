@@ -70,7 +70,7 @@ extern volatile uint8_t secToutRx;
 void rtcStartInit(void);
 void rtcWorkInit(void);
 void timeInit( void );
-void setAlrmSecMask( uint8_t secMask );
+void setAlrmSecMask( void );
 void alrmBOn(  void );
 
 // Получение системного мремени

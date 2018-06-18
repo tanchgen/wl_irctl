@@ -112,7 +112,9 @@ void RTC_IRQHandler(void){
         // Периодическое измерение - измеряем все
         mesure();
         // Настало время передачи: Передаем состояние
-        csmaRun();
+//        csmaRun();
+        state = STAT_RF_CSMA_START;
+        wutSet( TX_DURAT );
       }
     }
     //Clear ALRAF
@@ -155,30 +157,29 @@ void EXTI0_1_IRQHandler(void)
     rfmReceive( &rxPkt );
     rfmRecvStop();
     if( rxPkt.payDriveType == DRIV_TYPE_IRCTL){
+      enum eAcErr acErr;
+
       driveData.cmdNum = rxPkt.payLoad.cmdMsg.cmdNum;
       if( connectFlag == FALSE ){
-        enum eAcErr acErr;
 
         // Маскируем секунды в будильнике A (TX)
-        setAlrmSecMask( RESET );
+        setAlrmSecMask();
         // Включаем будильник B (RX)
         alrmBOn();
         secToutTx = 1;
         minToutTx = 6;
         connectFlag = TRUE;
-        // Принята команда - Кодируем и отправляем команду на ИК
-        acData = *((tAcData *)&(rxPkt.payState));
-        if( (acErr = protoPktCod()) == AC_ERR_OK ){
-          acErr = irPktSend();
-        }
-        acData.err = acErr;
-        // Обновляем состояние устройства
-        mesure();
-        wutSet( 50000 );
-        state = STAT_DRIV_SEND;
       }
-      rfmListenStop();
-      state = STAT_READY;
+      // Принята команда - Кодируем и отправляем команду на ИК
+      acData = *((tAcData *)&(rxPkt.payState));
+      if( (acErr = protoPktCod()) == AC_ERR_OK ){
+        acErr = irPktSend();
+      }
+      acData.err = acErr;
+      // Обновляем состояние устройства
+      mesure();
+      wutSet( 50000 );
+      state = STAT_RF_RX_OK;
     }
 
   }
@@ -190,12 +191,10 @@ void EXTI0_1_IRQHandler(void)
       // Через 50мс будем включать прослушивание канала
       wutSet(50000);
       state = STAT_TX_STOP;
+      txToutSet();
     }
     else {
       wutStop();
-    }
-    if( connectFlag == FALSE ){
-      txToutSet();
     }
   }
   // Отмечаем останов RFM_TX
@@ -300,6 +299,8 @@ void TIM21_IRQHandler( void ){
 
 // Обработчик прерывания таймера модуляции (длительность импульсов и пауз) ИК-передатчика
 void TIM22_IRQHandler( void ){
+  // Восстанавливаем настройки портов
+  restoreContext();
 
   if( TIM22->SR & TIM_SR_UIF){
     GPIOA->BRR |= GPIO_Pin_11;
@@ -324,14 +325,34 @@ void TIM22_IRQHandler( void ){
       // Передача закончена - все выключаем
       TIM22->CR1 &= ~TIM_CR1_CEN;
       IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
+
+#if STOP_EN
+      // Окончания передачи ИК-пакета -> Включаем засыпание по ВЫХОДУ ИЗ ПРЕРЫВАНИЯ
+      // Если не включен таймер модулирующей ПРИЕМА ИК-пакета
+      if( (TIM2->CR1 & TIM_CR1_CEN) == 0 ){
+        SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
+      }
+#endif
     }
     TIM22->SR &= ~TIM_SR_CC1IF;
   }
+  // Сохраняем настройки портов
+  saveContext();
 }
 
 void TIM2_IRQHandler( void ){
+  // Восстанавливаем настройки портов
+  restoreContext();
   TIM2->SR &= ~TIM_SR_UIF;
   TIM2->CR1 &= ~TIM_CR1_CEN;
+
+#if STOP_EN
+  // Окончания приема ИК-пакета -> Включаем засыпание по ВЫХОДУ ИЗ ПРЕРЫВАНИЯ
+  // Если не включен таймер модулирующей ПЕРЕДАЧИ ИК-пакета
+  if( (TIM22->CR1 & TIM_CR1_CEN) == 0 ){
+    SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
+  }
+#endif
 
   // Примой счет - прием (обучение)
   // Длительность паузы более 100мс -> пакет принят.
@@ -358,6 +379,8 @@ void TIM2_IRQHandler( void ){
   // Выждем паузу 250мс до ожидания следующего ИК-пакета
   state = STAT_IR_RX_STOP;
   wutSet(250000);
+  // Сохраняем настройки портов
+  saveContext();
 }
 
 inline void txToutSet( void ){
@@ -373,7 +396,7 @@ inline void txToutSet( void ){
     }
     else if( connectCount == 20){
       // Переводим будильник на минутный интервал
-      setAlrmSecMask( RESET );
+      setAlrmSecMask();
       secToutTx = 1;
       minToutTx = 1;
     }
@@ -381,6 +404,5 @@ inline void txToutSet( void ){
       secToutTx = 30;
       minToutTx = 1;
     }
-
   }
 }

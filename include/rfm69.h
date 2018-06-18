@@ -232,8 +232,8 @@
 
 #define NET_ID            0x0101          // Идентификатор сети
 //#define CHANN_DEF         ((NET_ID % 8)+1)   // RF-канал по умолчанию
-#define CHANN_DEF         0x03   // RF-канал по умолчанию
-#define NODE_ADDR         0x42            // Собственный адрес нода по умолчанию
+#define CHANN_DEF         0x02   // RF-канал по умолчанию
+#define NODE_ADDR         0x71            // (113) Собственный адрес нода по умолчанию
 #define BCRT_ADDR         0x00            // Адрес БКРТ-255
 #define BRDCAST_ADDR      0xFF            // Широковещательный адрес
 

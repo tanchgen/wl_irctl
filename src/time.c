@@ -101,9 +101,10 @@ void rtcWorkInit(  void ) {
   while( ((RTC->ISR & RTC_ISR_ALRAWF) != RTC_ISR_ALRAWF) && ((RTC->ISR & RTC_ISR_ALRBWF) != RTC_ISR_ALRBWF) )
   {}
   // Устанавливаем секунды в будильник - разбиваем все ноды на 60 групп
-  RTC->ALRMAR = (uint32_t)(BIN2BCD(rfm.nodeAddr % 60));
+  RTC->ALRMAR = (uint32_t)(BIN2BCD(rfm.nodeAddr % 60)) | RTC_ALRMAR_MNU_0 | RTC_ALRMAR_HU_0 | RTC_ALRMAR_DU_0;
   // Alarm A every day, every hour, every minute, every second
   RTC->ALRMAR |= RTC_ALRMAR_MSK4 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK2 | RTC_ALRMAR_MSK1;
+//  RTC->ALRMAR |= RTC_ALRMAR_MSK4 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK2;
   // Alarm B every day, every hour, every minute, every second
   RTC->ALRMBR |= RTC_ALRMBR_MSK4 | RTC_ALRMBR_MSK3 | RTC_ALRMBR_MSK2 | RTC_ALRMBR_MSK1;
   // Разрешаем пока только будильник передачи
@@ -120,20 +121,26 @@ void rtcWorkInit(  void ) {
 
 }
 
-void setAlrmSecMask( uint8_t secMask ){
+void setAlrmSecMask( void ){
+  uint32_t tmp;
+
   RTC->WPR = 0xCA;
   RTC->WPR = 0x53;
-  RTC->CR &=~ RTC_CR_ALRAE;
-  while ((RTC->ISR & RTC_ISR_ALRAWF) != RTC_ISR_ALRAWF)
+
+  // ======= Конфигурация будильников A и B: Будильник A - ПЕРЕДАЧА, Будильник B - ПРИЕМ ========
+  // Disable alarm A to modify it
+  RTC->CR &= ~RTC_CR_ALRAE;
+  while( (RTC->ISR & RTC_ISR_ALRAWF) != RTC_ISR_ALRAWF )
   {}
-  // Alarm A every day, every hour, every minute, every second
-  if( secMask ){
-    RTC->ALRMAR |= RTC_ALRMAR_MSK1;
-  }
-  else {
-    RTC->ALRMAR &= ~RTC_ALRMAR_MSK1;
-  }
-  RTC->CR = RTC_CR_ALRAIE | RTC_CR_ALRAE;
+  // Alarm A every day, every hour, every minute
+  tmp = RTC->ALRMAR;
+  tmp &= ~RTC_ALRMBR_MSK1;
+  // Alarm B every day, every hour, every minute, every second
+  RTC->ALRMAR = tmp;
+  // Разрешаем пока только будильник передачи
+  RTC->CR |= (RTC_CR_ALRAIE | RTC_CR_ALRAE);
+
+  // Disable write access
   RTC->WPR = 0xFE;
   RTC->WPR = 0x64;
 }
@@ -161,7 +168,8 @@ void timeInit( void ) {
   // Интервал будильника - передача минуты
   minToutTx = 1;
   // Интервал будильника - передача секунды
-  secToutTx = 10;
+//  secToutTx = 10;
+  secToutTx = 1;
   // Интервал будильника - прием секунды
   secToutRx = 5;
 

@@ -74,7 +74,7 @@ inline void irTxPinInit( void ){
   IR_TX_PORT->BSRR |= IR_TX_PIN;
 
   // Подтяжка выключена
-  IR_TX_PORT->PUPDR = (IR_TX_PORT->PUPDR & ~(0x3 << (IR_TX_PIN_NUM * 2)));
+  IR_TX_PORT->PUPDR = (IR_TX_PORT->PUPDR & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
   // Открытый сток
   IR_TX_PORT->OTYPER &= ~(IR_TX_PIN);
   IR_TX_PORT->OSPEEDR = (IR_TX_PORT->OSPEEDR & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
