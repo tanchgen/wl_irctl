@@ -86,7 +86,7 @@ void RTC_IRQHandler(void){
     // Таймер на прослушивание канала для приема команд = 10мс
     wutSet(10000);
     // Включаем прием
-    rfmSetMode_s( REG_OPMODE_RX );
+    listenStart();
     state = STAT_LISTEN_START;
   }
 // =============== Сработал будильник передачи =======================
@@ -191,7 +191,7 @@ void EXTI0_1_IRQHandler(void)
       // Через 50мс будем включать прослушивание канала
       wutSet(50000);
       state = STAT_TX_STOP;
-      txToutSet();
+//      txToutSet();
     }
     else {
       wutStop();

@@ -168,8 +168,8 @@ void timeInit( void ) {
   // Интервал будильника - передача минуты
   minToutTx = 1;
   // Интервал будильника - передача секунды
-//  secToutTx = 10;
-  secToutTx = 1;
+  secToutTx = 10;
+//  secToutTx = 1;
   // Интервал будильника - прием секунды
   secToutRx = 5;
 
