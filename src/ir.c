@@ -228,6 +228,9 @@ void irRxProcess( void ){
     // Выключаем засыпание по ВЫХОДУ ИЗ ПРЕРЫВАНИЯ до окончания приема ИК-пакета
     SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
 #endif
+    // Выключаем сохранение и восстановление настроек портов
+    saveCtx = saveCntext0;
+    restCtx = restoreCntext0;
 
     TIM2->CR1 |= TIM_CR1_CEN;
     EXTI->RTSR |= IR_RX_PIN;
@@ -506,6 +509,9 @@ uint8_t irPktSend( void ){
   // Выключаем засыпание по Выходу из прерывания до окончания передачи ИК-пакета
   SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
 #endif
+  // Выключаем сохранение и восстановление настроек портов
+  saveCtx = saveCntext0;
+  restCtx = restoreCntext0;
 
   // Запускаем таймер модулирующей
   TIM22->CR1 |= TIM_CR1_CEN;

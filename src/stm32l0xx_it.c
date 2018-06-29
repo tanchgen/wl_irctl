@@ -67,7 +67,7 @@ void SysTick_Handler(void) {
 void RTC_IRQHandler(void){
 
   // Восстанавливаем настройки портов
-  restoreContext();
+  restCtx();
   // Отмечаем запуск MCU
 #if DEBUG_TIME
 	dbgTime.mcuStart = mTick;
@@ -134,7 +134,7 @@ void RTC_IRQHandler(void){
   while( (PWR->CSR & PWR_CSR_WUF) != 0)
   {}
 	// Сохраняем настройки портов
-	saveContext();
+	saveCtx();
 	// Проверяем на наличие прерывания EXTI
 //	extiPdTest();
 }
@@ -147,7 +147,7 @@ void EXTI0_1_IRQHandler(void)
   tPkt rxPkt;
 
   // Восстанавливаем настройки портов
-  restoreContext();
+  restCtx();
 
   // Стираем флаг прерывания EXTI
   EXTI->PR &= DIO0_PIN;
@@ -211,7 +211,7 @@ void EXTI0_1_IRQHandler(void)
   rfmSetMode_s( REG_OPMODE_SLEEP );
 
 	// Сохраняем настройки портов
-	saveContext();
+	saveCtx();
 	// Проверяем на наличие прерывания EXTI
 //	extiPdTest();
 }
@@ -221,7 +221,7 @@ void EXTI0_1_IRQHandler(void)
 void EXTI2_3_IRQHandler( void ){
 
   // Восстанавливаем настройки портов
-  restoreContext();
+  restCtx();
   wutStop();
 
   // Выключаем прерывание от DIO3 (RSSI)
@@ -248,7 +248,7 @@ void EXTI2_3_IRQHandler( void ){
   }
 
 	// Сохраняем настройки портов
-	saveContext();
+	saveCtx();
 	// Проверяем на наличие прерывания EXTI
 //  extiPdTest();
   return;
@@ -259,7 +259,7 @@ void EXTI2_3_IRQHandler( void ){
 // Прерывание по PB6 - IR-reseiver
 void EXTI4_15_IRQHandler( void ){
   // Восстанавливаем настройки портов
-  restoreContext();
+  restCtx();
   wutStop();
 
   if( EXTI->PR & BTN_PIN){
@@ -284,7 +284,7 @@ void EXTI4_15_IRQHandler( void ){
   }
 
   // Сохраняем настройки портов
-  saveContext();
+  saveCtx();
   // Проверяем на наличие прерывания EXTI
 //  extiPdTest();
   return;
@@ -305,7 +305,7 @@ void TIM21_IRQHandler( void ){
 // Обработчик прерывания таймера модуляции (длительность импульсов и пауз) ИК-передатчика
 void TIM22_IRQHandler( void ){
   // Восстанавливаем настройки портов
-  restoreContext();
+  restCtx();
 
   if( TIM22->SR & TIM_SR_UIF){
 //    GPIOA->BRR |= GPIO_Pin_11;
@@ -331,33 +331,40 @@ void TIM22_IRQHandler( void ){
       TIM22->CR1 &= ~TIM_CR1_CEN;
       IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x1 << (IR_TX_PIN_NUM * 2));
 
-#if STOP_EN
       // Окончания передачи ИК-пакета -> Включаем засыпание по ВЫХОДУ ИЗ ПРЕРЫВАНИЯ
       // Если не включен таймер модулирующей ПРИЕМА ИК-пакета
       if( (TIM2->CR1 & TIM_CR1_CEN) == 0 ){
+#if STOP_EN
         SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
-      }
+        // Выключаем сохранение и восстановление настроек портов
+
 #endif
+        saveCtx = saveCntext;
+        restCtx = restoreCntext;
+      }
     }
     TIM22->SR &= ~TIM_SR_CC1IF;
   }
   // Сохраняем настройки портов
-  saveContext();
+  saveCtx();
 }
 
 void TIM2_IRQHandler( void ){
   // Восстанавливаем настройки портов
-  restoreContext();
+  restCtx();
   TIM2->SR &= ~TIM_SR_UIF;
   TIM2->CR1 &= ~TIM_CR1_CEN;
 
-#if STOP_EN
   // Окончания приема ИК-пакета -> Включаем засыпание по ВЫХОДУ ИЗ ПРЕРЫВАНИЯ
   // Если не включен таймер модулирующей ПЕРЕДАЧИ ИК-пакета
   if( (TIM22->CR1 & TIM_CR1_CEN) == 0 ){
+#if STOP_EN
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
-  }
 #endif
+    // Выключаем сохранение и восстановление настроек портов
+    saveCtx = saveCntext0;
+    restCtx = restoreCntext0;
+  }
 
   // Примой счет - прием (обучение)
   // Длительность паузы более 100мс -> пакет принят.
@@ -385,7 +392,7 @@ void TIM2_IRQHandler( void ){
   state = STAT_IR_RX_STOP;
   wutSet(250000);
   // Сохраняем настройки портов
-  saveContext();
+  saveCtx();
 }
 
 inline void txToutSet( void ){

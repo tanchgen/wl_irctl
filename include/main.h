@@ -91,6 +91,9 @@ extern tEeBackup eeBackup;
 extern volatile tFlags flags;                 // Флаги состояний системы
 extern volatile eState state;                          // Состояние машины
 
+extern void (*saveCtx)(void);
+extern void (*restCtx)(void);
+
 #define DEBUG_TIME			0
 
 #if DEBUG_TIME
@@ -110,8 +113,10 @@ extern tDbgTime dbgTime;
 
 #endif // DEBUG_TIME
 
-void restoreContext(void);
-void saveContext(void);
+void restoreCntext(void);
+void saveCntext(void);
+void restoreCntext0(void);
+void saveCntext0(void);
 
 /* ########################## Assert Selection ############################## */
 /**
