@@ -71,15 +71,15 @@ typedef struct __packed  {
   uint8_t rfmTxPwr;     // Мощность передатчика
 } tEeBackup;
 
-// Структура измеряемых датчиком параметров
-typedef struct  __packed {
-  uint8_t devState;     // Состояние исполнительного устройства
-  uint8_t cmdNum;       // Температура предыдущего (1мин) измерения
-  int8_t temp;         // Температура предыдущего переданного (6мин) измерения
-  uint8_t bat;          // Напряжение питания
-  uint8_t rssi;         // Мощность принимаемого радиосигнала
-} tDriveData;
-
+//// Структура измеряемых датчиком параметров
+//typedef struct  __packed {
+//  tAcData acState;     // Состояние исполнительного устройства
+//  uint8_t cmdNum;       // Температура предыдущего (1мин) измерения
+//  int8_t temp;         // Температура предыдущего переданного (6мин) измерения
+//  uint8_t bat;          // Напряжение питания
+//  uint8_t rssi;         // Мощность принимаемого радиосигнала
+//} tDriveData;
+//
 typedef struct{
   unsigned int sensErr : 1;
   unsigned int sensCplt : 1;
@@ -88,7 +88,6 @@ typedef struct{
 
 //extern volatile uint32_t mTick;
 extern tEeBackup eeBackup;
-extern volatile tDriveData driveData;           // Структура измеряемых датчиком параметров
 extern volatile tFlags flags;                 // Флаги состояний системы
 extern volatile eState state;                          // Состояние машины
 

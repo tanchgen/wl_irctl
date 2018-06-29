@@ -13,16 +13,16 @@
 #include "bat.h"
 #include "rfm69.h"
 #include "button.h"
+#include "proto.h"
 #include "process.h"
+
 
 volatile uint8_t csmaCount = 0;
 volatile uint8_t connectFlag = FALSE;
 volatile uint8_t connectCount = 0;
 tUxTime sendTryStopTime;
 static uint8_t msgNum;      // Порядковый номер отправляемого пакета
-extern uint8_t wutCount;
 
-static void sensDataSend( void );
 static uint32_t rngGet( void );
 
 void mesure( void ){
@@ -68,6 +68,7 @@ void wutIrqHandler( void ){
       state = STAT_READY;
       break;
     case STAT_RF_RX_OK:
+      pkt.payMsgType = MSG_TYPE_RESPONSE;
       csmaRun();
       break;
     case STAT_RF_CSMA_START:
@@ -82,7 +83,7 @@ void wutIrqHandler( void ){
 
     	rfmSetMode_s( REG_OPMODE_SLEEP );
       // Отправить сообщение
-      correctAlrm( ALRM_A );
+//      correctAlrm( ALRM_A );
       state = STAT_TX_START;
       sensDataSend();
       break;
@@ -98,6 +99,9 @@ void wutIrqHandler( void ){
     case STAT_TX_STOP:
       // Включаем прослушивание канала
       rfmSetMode_s( REG_OPMODE_RX );
+
+      GPIOA->ODR ^= GPIO_Pin_11;
+
       // Таймаут - 20мс
       wutSet(20000);
       state = STAT_LISTEN_START;
@@ -105,6 +109,9 @@ void wutIrqHandler( void ){
     case STAT_LISTEN_START:
       // Никакого сообщения не пришло - засыпаем
       rfmSetMode_s( REG_OPMODE_SLEEP );
+
+//      GPIOA->ODR ^= GPIO_Pin_11;
+
       state = STAT_READY;
       break;
     default:
@@ -164,13 +171,13 @@ void csmaPause( void ){
   wutSet( pause );
 }
 
-static void sensDataSend( void ){
+void sensDataSend( void ){
   // ---- Формируем пакет данных -----
 	pkt.payDriveType = DRIV_TYPE_IRCTL;
   pkt.paySrcNode = rfm.nodeAddr;
   pkt.payMsgNum = msgNum++;
   pkt.payBat = driveData.bat;
-  pkt.payState = driveData.devState;
+  pkt.payState = acState;
   pkt.payCmdNum = driveData.cmdNum;
 
   // Передаем заполненую при измерении запись
@@ -179,6 +186,7 @@ static void sensDataSend( void ){
   pkt.payLen = sizeof(tDriveMsg);
 
   rfmTransmit( &pkt );
+
   // Таймаут до окончания передачи
   wutSet( TX_DURAT*10 );
 
@@ -186,7 +194,7 @@ static void sensDataSend( void ){
 
 void txEnd( void ){
   // Обнулили индекс тестового массива WUT
-  wutCount = 0;
+//  wutCount = 0;
   flags.sensCplt = FALSE;
   flags.batCplt = FALSE;
   state = STAT_READY;

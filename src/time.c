@@ -21,14 +21,13 @@ volatile uint8_t minToutTx;
 volatile uint8_t secToutTx;
 volatile uint8_t secToutRx;
 
+uint8_t timeCorr;
+
 //uint8_t secondFlag = RESET;
 
 // Для тестирования - массив интервалов таймера WUT
-uint8_t wutCount;
-struct {
-  eState wutState;
-  uint32_t wutVol;
-} wutTest[20];
+//uint8_t wutCount;
+//struct  sWutTst wutTest[20];
 
 static void RTC_SetTime( volatile tRtc * prtc );
 static void RTC_SetDate( volatile tRtc * prtc );
@@ -91,6 +90,7 @@ void rtcStartInit(void){
 }
 
 void rtcWorkInit(  void ) {
+
   // Write access for RTC registers
   RTC->WPR = 0xCA;
   RTC->WPR = 0x53;
@@ -100,9 +100,7 @@ void rtcWorkInit(  void ) {
   RTC->CR &= ~(RTC_CR_ALRAE | RTC_CR_ALRBE);
   while( ((RTC->ISR & RTC_ISR_ALRAWF) != RTC_ISR_ALRAWF) && ((RTC->ISR & RTC_ISR_ALRBWF) != RTC_ISR_ALRBWF) )
   {}
-  // Устанавливаем секунды в будильник - разбиваем все ноды на 60 групп
-  RTC->ALRMAR = (uint32_t)(BIN2BCD(rfm.nodeAddr % 60)) | RTC_ALRMAR_MNU_0 | RTC_ALRMAR_HU_0 | RTC_ALRMAR_DU_0;
-  // Alarm A every day, every hour, every minute, every second
+  // Устанавливаем будильник - Alarm A every day, every hour, every minute, every second
   RTC->ALRMAR |= RTC_ALRMAR_MSK4 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK2 | RTC_ALRMAR_MSK1;
 //  RTC->ALRMAR |= RTC_ALRMAR_MSK4 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK2;
   // Alarm B every day, every hour, every minute, every second
@@ -147,8 +145,10 @@ void setAlrmSecMask( void ){
 
 
 void timeInit( void ) {
+  uint32_t tmpDr;
+
   //Инициализируем RTC
-  rtcStartInit();
+  rtcWorkInit();
 
   /*##-1- Configure the Date #################################################*/
   /* Set Date: Wednesday June 1st 2016 */
@@ -158,10 +158,11 @@ void timeInit( void ) {
   rtc.wday = 5;
   rtc.hour = 12;
   rtc.min = 0;
-  rtc.sec = 0;;
+  // Разбиваем все адреса нодов на 60 групп и корректируем ход часов с поправкой на номер группы
+  timeCorr = (rfm.nodeAddr % 60);
+  rtc.sec = 60 - timeCorr;
   rtc.ss = 0;
-
-  wutTest[10].wutVol = RTC->DR;
+  tmpDr = RTC->DR;
   RTC_SetDate( &rtc );
   RTC_SetTime( &rtc );
 
@@ -171,14 +172,14 @@ void timeInit( void ) {
   secToutTx = 10;
 //  secToutTx = 1;
   // Интервал будильника - прием секунды
-  secToutRx = 5;
+  secToutRx = 0;
 
 //  // Выставляем будильник для измерения температуры
 //  rtc.sec = BIN2BCD(rfm.nodeAddr % 60) + 1;
 //  uxTime = xTm2Utime( &rtc );
 //  setAlrm( uxTime, ALRM_A );
 //
-  while( (wutTest[10].wutVol == RTC->DR) )
+  while( (tmpDr == RTC->DR) )
   {}
 }
 
@@ -292,6 +293,8 @@ void xUtime2Tm( volatile tRtc * prtc, tUxTime secsarg){
 }
 
 void setRtcTime( tUxTime xtime ){
+  // Поправка - сдвиг времени на адрес нода
+  xtime -= timeCorr;
 
   xUtime2Tm( &rtc, xtime);
   RTC_SetTime( &rtc );
@@ -335,8 +338,14 @@ tUxTime getRtcTime( void ){
   rtc.min = BCD2BIN( tr >> RTC_POSITION_TR_MU );
   rtc.sec = BCD2BIN( tr );
 
-  return xTm2Utime( &rtc );
+  // Поправка - обратный сдвиг на адрес нода
+  rtc.sec += timeCorr;
+
+  uint32_t tmp = xTm2Utime( &rtc );
+  xUtime2Tm( &rtc, tmp );
+  return tmp;
 }
+
 /*
  * Чтение RTC, когда бит BYPSHAD сброшен
  */
@@ -606,8 +615,8 @@ void wutStop( void ){
  */
 void wutSet( uint32_t us ){
 
-  wutTest[wutCount].wutVol = us;
-  wutTest[wutCount++].wutState = state;
+//  wutTest[wutCount].wutVol = us;
+//  wutTest[wutCount++].wutState = state;
   // Если wukt == 0: просто останавливаем WUT
   RTC->WPR = 0xCA;
   RTC->WPR = 0x53;

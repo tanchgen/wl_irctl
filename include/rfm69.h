@@ -10,6 +10,7 @@
 
 #include "gpio.h"
 #include "my_time.h"
+#include "proto.h"
 
 // Определения для входов DIO_RFM
 #ifndef __packed
@@ -237,6 +238,13 @@
 #define BCRT_ADDR         0x00            // Адрес БКРТ-255
 #define BRDCAST_ADDR      0xFF            // Широковещательный адрес
 
+
+// Маски типов сообщений
+#define MSG_TYPE_BEACON   0      // "Маяковое" сообщение
+#define MSG_TYPE_DATA     1      // Сообщение "Данные"
+#define MSG_TYPE_RESPONSE 2      // Сообщение отклик
+#define MSG_TYPE_RESERVE  3      // Резервный тип сообщения
+
 // Режим работы модуля
 enum eRfmMode{
   MODE_SLEEP,
@@ -269,7 +277,10 @@ typedef struct {
 
 typedef struct {
   uint8_t srcNode;    // Адрес отправителя
-	uint8_t sensType;		// Тип конечного устройства
+  struct {
+    uint8_t msgType: 2;   // Тип сообщения
+    uint8_t sensType: 6;   // Тип конечного устройства
+  };
   uint8_t msgNum;     // Номер пакета
   uint8_t batVolt;    // Напряжение батареи питания
   uint16_t Volume;    // Значение сенсора
@@ -277,10 +288,13 @@ typedef struct {
 
 typedef struct {
   uint8_t srcNode;    // Адрес отправителя
-  uint8_t sensType;   // Тип конечного устройства
+  struct {
+    uint8_t drvType: 6;   // Тип конечного устройства
+    uint8_t msgType: 2;   // Тип сообщения
+  };
   uint8_t msgNum;     // Номер пакета
   uint8_t batVolt;    // Напряжение батареи питания
-  uint16_t devState;    // Состояние устройства
+  tAcData acState;    // Состояние устройства
   uint8_t cmdNum;     // Номер последнего принятогосообщения
 } __packed tDriveMsg;
 
@@ -288,8 +302,7 @@ typedef struct {
   uint8_t srcNode;    // Адрес, от кого получена команда
   uint8_t driveType;  // Тип конечного устройства - для проверки, что команда соответствует получателю
   uint8_t cmdNum;     // Номер полученой команды
-  uint8_t cmd;
-  uint8_t x8[60];
+  tAcData acCmd;    // Состояние устройства
 } __packed tCmdMsg;
 
 typedef union {
@@ -300,20 +313,20 @@ typedef union {
   tDriveMsg driveMsg;
 } __packed uPayload;
 
-
 typedef struct {
   uint8_t nodeAddr;     // Адрес получателя пакета
   uint8_t payLen;         // Длина пакета (payload)
   uPayload payLoad;                 // Буфер получаемых от RFM69 данных
 #define payBuf       payLoad.u8
-#define payCmd       payLoad.cmdMsg.cmd
+#define payAcCmd     payLoad.cmdMsg.acCmd
 #define payUtime     payLoad.timeMsg.time
 #define payMs        payLoad.timeMsg.ms
 #define paySrcNode   payLoad.driveMsg.srcNode
 #define payMsgNum    payLoad.driveMsg.msgNum
 #define payBat       payLoad.driveMsg.batVolt
-#define payDriveType payLoad.driveMsg.sensType
-#define payState     payLoad.driveMsg.devState
+#define payMsgType   payLoad.driveMsg.msgType
+#define payDriveType payLoad.driveMsg.drvType
+#define payState     payLoad.driveMsg.acState
 #define payCmdNum    payLoad.driveMsg.cmdNum
 
 //  uint8_t bufLen;       // Длина приемного буфера

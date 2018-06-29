@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
   // Разлочили EEPROM
   eepromUnlock();
 
-  timeInit();
+  rtcStartInit();
   buttonInit();
   buzzerInit();
 
@@ -115,15 +115,15 @@ int main(int argc, char* argv[])
   batInit();
 
   // В рабочем режиме включаем будильник
-  rtcWorkInit();
+  timeInit();
 #if STOP_EN
   // В рабочем режиме включаем засыпание по выходу из прерывания
   SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
 #endif
-  // Запустили измерения
-  mesure();
-  // Передаем состояние, как инициализационный пакет
-  csmaRun();
+//  // Запустили измерения
+//  mesure();
+//  // Передаем состояние, как инициализационный пакет
+//  csmaRun();
 
 //  GPIOB->MODER = (GPIOB->MODER & ~GPIO_MODER_MODE3) | GPIO_MODER_MODE3_0;
   saveContext();
@@ -215,7 +215,7 @@ static inline void eepromUnlock( void ){
 * Date:         09-23-16
 *******************************************************************************/
 void restoreContext(void){
-#if 1 //STOP_EN
+#if STOP_EN
 	// disable interrupts if they weren't already disabled
 	__disable_irq();
 		// Enable GPIO clocks
@@ -247,7 +247,7 @@ void restoreContext(void){
 * Date:         09-23-16
 *******************************************************************************/
 void saveContext(void){
-#if 1 //STOP_EN
+#if STOP_EN
 
 	// disable interrupts
 	__disable_irq();
@@ -275,46 +275,45 @@ void saveContext(void){
 
 
 void acCtrlTest( void ){
-for(uint8_t i = 0; i < 32; i++ ){
-  switch (i){
-    case 0:
-      // Включаем кондиционер
-      acData.onoff = OFF;
-      break;
-    case 1:
-      // Выключаем кондиционер
-      acData.onoff = ON;
-      break;
-    case 2 ... 6:
-      // Перебераем режимы MODE
-      acData.mode = i - 2;
-      break;
-    case 7 ... 21:
-      acData.mode = 1;
-      // Перебераем температуру 16-30 гр.Ц
-      acData.temp = i - 7;
-      break;
-    case 22 ... 25:
-      // Восстанавливаем температуру 23 гр.Ц
-      acData.temp = 7;
-      // Перебераем скорость вентилятора
-      acData.fan = i - 22;
-      break;
-    case 27 ... 31:
-      // Перебераем скорость вентилятора
-      acData.fan = 0;
-      // Перебераем положение задвижки
-      acData.swing = i - 27;
-      break;
-    default:
-      break;
+  rxAcState = acState;
+  for(uint8_t i = 0; i < 32; i++ ){
+    switch (i){
+      case 0:
+        // Включаем кондиционер
+        rxAcState.onoff = OFF;
+        break;
+      case 1:
+        // Выключаем кондиционер
+        rxAcState.onoff = ON;
+        break;
+      case 2 ... 6:
+        // Перебераем режимы MODE
+        rxAcState.mode = i - 2;
+        break;
+      case 7 ... 21:
+        rxAcState.mode = 1;
+        // Перебераем температуру 16-30 гр.Ц
+        rxAcState.temp = i - 7;
+        break;
+      case 22 ... 25:
+        // Восстанавливаем температуру 23 гр.Ц
+        rxAcState.temp = 7;
+        // Перебераем скорость вентилятора
+        rxAcState.fan = i - 22;
+        break;
+      case 27 ... 31:
+        // Перебераем скорость вентилятора
+        rxAcState.fan = 0;
+        // Перебераем положение задвижки
+        rxAcState.swing = i - 27;
+        break;
+      default:
+        break;
+    }
+    // Отправляем пакет на ИК
+    protoPktCod();
+    irPktSend();
+    mDelay(5000);
   }
-  // Отправляем пакет на ИК
-  protoPktCod();
-  irPktSend();
-  mDelay(5000);
-}
-
-
 }
 // ----------------------------------------------------------------------------

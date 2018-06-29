@@ -12,6 +12,8 @@
 #include "stm32l0xx_ll_rtc.h"
 #include "stm32l0xx.h"
 
+#include "main.h"
+
 #define ALARM_UPDATE_TOUT   100
 
 #define ALRM_A      0   // НЕ МЕНЯТЬ !!!!
@@ -65,6 +67,13 @@ extern __IO uint32_t myTick;
 extern volatile uint8_t minToutTx;
 extern volatile uint8_t secToutTx;
 extern volatile uint8_t secToutRx;
+
+//// Для тестирования - массив интервалов таймера WUT
+//extern uint8_t wutCount;
+//extern struct sWutTst{
+//  eState wutState;
+//  uint32_t wutVol;
+//} wutTest[20];
 
 // *********** Инициализация структуры ВРЕМЯ (сейчас - системное ) ************
 void rtcStartInit(void);

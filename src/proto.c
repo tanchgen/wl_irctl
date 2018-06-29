@@ -17,7 +17,7 @@
 
 
 // Установка параметров для Определенного
-void protoDefParamSet( uint16_t * arr, const tParamPos * pprm );
+uint8_t protoDefParamSet( uint16_t * arr, const tParamPos * pprm );
 int8_t areaFind( tFieldArr * pFldArr, uint8_t *idx );
 uint8_t acParamValue( uint8_t param );
 
@@ -35,15 +35,20 @@ tFieldArr newProtoField = {
     ir0Pkt
 };
 
-// Режим работы кондиционера по умолчанию
-tAcData acData = {
-    ON,             // Включить
-    AC_MODE_COOL,           // Охлаждение
-    TEMP_23,              // 23гр.Ц
-    FAN_SPEED_AUTO,  // Скорость - авто
-    SWING_POS_AUTO,
-    AC_ERR_OK
+// Режимы работы кондиционера
+// -------- по умолчанию --------
+tAcData acState = {
+    ON,                 // Включить
+    AC_MODE_COOL,       // Охлаждение
+    TEMP_23,            // 23гр.Ц
+    FAN_SPEED_AUTO,     // Скорость - авто
+    SWING_POS_AUTO,     // Положение диффузора
+    AC_ERR_OK           // Ошибка протокола
 };
+// ---------- Принятый от центрального устройства --------------------
+tAcData rxAcState;
+
+uint8_t volMax[6] = {1, 4, 14, 4, 4, 15};   // Максилмальное значение параметра
 
 // ###################################### ОПРЕДЕЛЕННЫЕ ПРОТОКОЛЫ ###################################
 //=============== Опитсание протокола AERONIK ============================
@@ -51,7 +56,7 @@ tAcData acData = {
 uint16_t anikHeader0Field[2] = {344, 172};
 // Длительности полей паузы
 uint16_t anikMidPauseField[2] = {25, 763};
-uint16_t anikMidPause2Field = 52;
+uint16_t anikMidPause2Field = 25;
 
 // Описание ИК-пакета протокола AERONIK
 tFieldArr anikProtoField[6] = {
@@ -63,16 +68,21 @@ tFieldArr anikProtoField[6] = {
   {FTYPE_DUR, 0, NULL}                             // Признак конца пакета
 };
 
+const uint8_t fanChange[5] = { 0,1,2,3,3 };
+const uint8_t swingChange[5] = { 1,2,3,4,5 };
+
 // НУЛЕВОЙ пакет AERONIK
 const tProtoPkt0 anikPkt0 = { 5, { 0x0709, 0x5040, 0x0002, 0x2000, 0xc000 }};
 const tParamPos anikParams[6] = {
-    {0X1, 3},        // ONOFF
-    {0x7, 0},        // MODE
-    {0xF, 8},        // TEMP
-    {0x2, 4},        // FAN
-    {0x7, (3*16)},   // SWING
-    {0xF, (4*16+12)} // CRC
+    {0X1, 3, NULL},        // ONOFF
+    {0x7, 0, NULL},        // MODE
+    {0xF, 8, NULL},        // TEMP
+    {0x2, 4, fanChange},        // FAN
+    {0x7, (3*16), swingChange},   // SWING
+    {0xF, (4*16+12), NULL} // CRC
 };
+
+
 // Функция расчета CRC для протокола AERONIK
 uint8_t anikCrc( void ){
   uint8_t crc = 0;
@@ -118,11 +128,11 @@ tFieldArr smsgProtoField[5] = {
 const tProtoPkt0 smsgPkt0 = { 5, { 0x0709, 0x5040, 0x0002, 0x2000, 0xc000 }};
 
 const tParamPos smsgParams[5] = {
-    {0X1, 3},     // ONOFF
-    {0x7, 0},     // MODE
-    {0xF, 8},     // TEMP
-    {0x2, 4},     // FAN
-    {0xF, 16}     // SWING
+    {0X1, 3, NULL},     // ONOFF
+    {0x7, 0, NULL},     // MODE
+    {0xF, 8, NULL},     // TEMP
+    {0x2, 4, NULL},     // FAN
+    {0xF, 16, NULL}     // SWING
 };
 
 // Функция расчета CRC для протокола SAMSUNG
@@ -270,16 +280,28 @@ int8_t areaFind( tFieldArr * pFldArr, uint8_t *idx ){
 
 
 // Установка параметров для Определенного протокола
-void protoDefParamSet( uint16_t * arr, const tParamPos * pprm ){
+uint8_t protoDefParamSet( uint16_t * arr, const tParamPos * pprm ){
+  uint8_t rec = 0;
   uint8_t value;
   uint16_t * arrn;
   uint8_t i;
 
   for( i = 0; i < 6; i++ ){
     value = acParamValue( i );
-    arrn = arr + (pprm[i].pos/ 16);
-    *arrn = (*arrn & ~(pprm[i].mask << (pprm[i].pos % 16))) | (value << (pprm[i].pos % 16));
+    if(value <= volMax[i]){
+      if( pprm[i].paramChange != NULL ){
+        value = pprm[i].paramChange[value];
+      }
+      arrn = arr + (pprm[i].pos/ 16);
+      *arrn = (*arrn & ~(pprm[i].mask << (pprm[i].pos % 16))) | (value << (pprm[i].pos % 16));
+    }
+    else {
+      rec = 0;
+      acState.err = AC_ERR_PARAM;
+      break;
+    }
   }
+  return rec;
 }
 
 // Кодирование пакета для отправки по ИК
@@ -302,10 +324,10 @@ uint8_t protoPktCod( void ){
 
   // Формируем сырой пакет для передачи по ИК
   if( protoName == PROTO_NONAME){
-    protoNonDefCod();
+    rec = protoNonDefCod();
   }
   else {
-    protoDefCod( &protoDesc[protoName] );
+    rec = protoDefCod( &protoDesc[protoName] );
   }
 
   // Включаем прерывание от КНОПКИ
@@ -373,7 +395,9 @@ uint8_t protoDefCod( tProtoDesc * prDesc ){
   return rec;
 }
 
-void protoNonDefCod( void ){
+uint8_t protoNonDefCod( void ){
+  uint8_t rec = 0;
+
   // Сначала копируем НАЧАЛЬНЫЙ пакет в массив полей для отправки
   for( uint8_t i = 0; i < field0Num; i++ ){
     irPkt[i] = ir0Pkt[i];
@@ -384,6 +408,13 @@ void protoNonDefCod( void ){
     uint8_t sellNum;
 
     value = acParamValue( k );
+    if( value > volMax[k] ){
+      rec = 1;
+      break;
+    }
+
+    sellNum = paramfieldBegin[k] + value;
+
     /* Если какой-то из параметров отличается от параметров НАЧАЛЬНОГО пакета - устанавливаем его и
      * устанавливаем его и следующие НЕ меняем
      */
@@ -412,14 +443,15 @@ void protoNonDefCod( void ){
       }
     }
 
-    sellNum = paramfieldBegin[k] + value;
-
     // Перебираем отличия в полях
     for( uint8_t j = 0; j < rxFieldQuant[sellNum]; j++) {
       // Есть отличия в полях
       irPkt[ (pIrField[sellNum])[j].fieldNum ] = (pIrField[sellNum])[j].fieldDur;
     }
   }
+
+  return rec;
+
 }
 
 // Возвращает значение параметра
@@ -428,19 +460,29 @@ uint8_t acParamValue( uint8_t param ){
 
   switch( param ){
     case   PARAM_ONOFF:
-      value = acData.onoff;
+      // Записываем из принятого от центрального устройства в отправляемое по ИК-каналу кондиционеру
+      acState.onoff = rxAcState.onoff;
+      value = acState.onoff;
       break;
     case   PARAM_MODE:
-      value = acData.mode;
+      // Записываем из принятого от центрального устройства в отправляемое по ИК-каналу кондиционеру
+      acState.mode = rxAcState.mode;
+      value = acState.mode;
       break;
     case   PARAM_TEMP:
-      value = acData.temp;
+      // Записываем из принятого от центрального устройства в отправляемое по ИК-каналу кондиционеру
+      acState.temp = rxAcState.temp;
+      value = acState.temp;
       break;
     case   PARAM_FAN:
-      value = acData.fan;
+      // Записываем из принятого от центрального устройства в отправляемое по ИК-каналу кондиционеру
+      acState.fan = rxAcState.fan;
+      value = acState.fan;
       break;
     case   PARAM_SWING:
-      value = acData.swing;
+      // Записываем из принятого от центрального устройства в отправляемое по ИК-каналу кондиционеру
+      acState.swing = rxAcState.swing;
+      value = acState.swing;
       break;
     case PARAM_CRC:
       if(protoName != PROTO_NONAME ){

@@ -199,11 +199,11 @@ void irRxInit( void ){
 // =========== Для тестирования =====================
 // PA11 на вывод данных
 //---- Инициализация выхода для: Выход, 2МГц, без подтяжки ---
-//  GPIOA->OTYPER &= ~(GPIO_Pin_11);
-//  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 << (11 * 2))) | (0x1 << (11 * 2));
-//  GPIOA->PUPDR = (GPIOA->PUPDR & ~(0x3 << (11 * 2)));
-//  GPIOA->MODER = (GPIOA->MODER & ~(0x3<< (11 * 2))) | (0x1 << (11 * 2));
-//  GPIOA->BSRR |= GPIO_Pin_11;
+  GPIOA->OTYPER &= ~(GPIO_Pin_11);
+  GPIOA->OSPEEDR = (GPIOA->OSPEEDR & ~(0x3 << (11 * 2))) | (0x1 << (11 * 2));
+  GPIOA->PUPDR = (GPIOA->PUPDR & ~(0x3 << (11 * 2)));
+  GPIOA->MODER = (GPIOA->MODER & ~(0x3<< (11 * 2))) | (0x1 << (11 * 2));
+  GPIOA->BSRR |= GPIO_Pin_11;
 
 }
 
@@ -410,6 +410,7 @@ void learnReset( void ){
 
   if( (onOffFlag != ON) || (btn.longPressCnt > 1) ){
     // Обучение сначала
+	field0Num = 0;
     rxStat = RX_STAT_0;
     onOffFlag = -1;
     pIrPkt = ir0Pkt;

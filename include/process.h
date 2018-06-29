@@ -106,6 +106,8 @@ int8_t dataSendTry( void );
 void csmaRun( void );
 void csmaPause( void );
 void txEnd( void );         // Завершение передачи: Очистка флагов и данных.
+void listenStart( void );
+void sensDataSend( void );
 
 inline void deepSleepOn( void ){
   // STOP mode (SLEEPDEEP) enable

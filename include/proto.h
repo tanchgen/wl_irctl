@@ -55,17 +55,21 @@ enum eSwingPos {
 enum eAcErr{
   AC_ERR_OK = 0,
   AC_ERR_NON_LEARN,
+  AC_ERR_PARAM,
 };
 
+#ifndef ACDATA_T
+#define ACDATA_T
 // Битовое поле параметров работы кондиционера
 typedef struct {
-  unsigned int onoff:  1;        // Вкл. / Выкл.
+  uint16_t onoff:  1;        // Вкл. / Выкл.
   enum eMode mode:      3;        // Режим работы
-  unsigned int temp:   4;        // Температура (гр.Ц - 16): 23гр.Ц --> temp = 7
+  uint16_t temp:   4;        // Температура (гр.Ц - 16): 23гр.Ц --> temp = 7
   enum eFanSpeed fan:   3;        // Скорость вентилятора
   enum eSwingPos swing: 3;        // Положение диффузора
   enum eAcErr   err:    2;        // Ошибка контроллера кондиционера
 } tAcData;
+#endif
 
 // Структура массива полей НАЧАЛЬНОГО заголовка
 typedef struct {
@@ -91,6 +95,7 @@ typedef enum {
 typedef struct {
   uint8_t mask;
   uint8_t pos;
+  const uint8_t * paramChange; // Таблица подмены значений параметров
 } tParamPos;
 
 typedef struct {
@@ -140,10 +145,21 @@ struct eeProtoBak {
   uint8_t fld0Num;
 };
 
+// Структура измеряемых датчиком параметров
+typedef struct  __packed {
+  tAcData acState;     // Состояние исполнительного устройства
+  uint8_t cmdNum;       // Температура предыдущего (1мин) измерения
+  int8_t temp;         // Температура предыдущего переданного (6мин) измерения
+  uint8_t bat;          // Напряжение питания
+  uint8_t rssi;         // Мощность принимаемого радиосигнала
+} tDriveData;
+
+extern volatile tDriveData driveData;           // Структура измеряемых датчиком параметров
 extern struct eeProtoBak eeIrProtoBak;
 extern eProtoName protoName;
 extern tProtoDesc protoDesc[];
-extern tAcData acData;
+extern tAcData acState;
+extern tAcData rxAcState;
 extern tRxFieldLst * pIrField[];            // Массив указателей на структуры изменяемых полей
 extern tRxFieldLst irDiffField[];           // Список отличающихся от НАЧАЛЬНОГО полей
 
@@ -151,7 +167,7 @@ extern tRxFieldLst irDiffField[];           // Список отличающих
 uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len );
 uint8_t protoPktCod( void );
 uint8_t protoDefCod( tProtoDesc * prDesc );
-void protoNonDefCod( void );
+uint8_t protoNonDefCod( void );
 uint8_t irProtoRestore( void );
 
 // Сравнение длительностей полей в ИК-пакете
@@ -166,7 +182,7 @@ inline int8_t irDurCmp( uint16_t dur0, uint16_t dur, uint8_t percent){
   }
   // Если разница меньше percent % возвращаем 0 (FALSE), иначе 1 (TRUE)
   // Учитывается точность измерения интервалов: +-1
-  return ( (tmp - dur0) > (((dur0 * percent) / 100) + 1) )? TRUE: FALSE;
+  return ( (tmp - dur0) > (((dur0 * percent) / 100) + 1) )? 1: 0;
 }
 
 inline uint8_t writeDataBit( uint16_t * fldArr, uint8_t idx, uint8_t bit){

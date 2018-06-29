@@ -14,11 +14,11 @@ uint8_t rssiVol;    //
 //uint8_t txCpltCount = 0;
 
 //#if ! STOP_EN
-//uint8_t rtcLogCount;
-//struct {
-//  uint32_t ssr;
-//  eState state;
-//} rtcLog[64];
+uint8_t rtcLogCount;
+struct {
+  uint32_t sec;
+  eState state;
+} rtcLog[64];
 //#endif
 
 /* External variables --------------------------------------------------------*/
@@ -65,7 +65,8 @@ void SysTick_Handler(void) {
 * RTC global interrupt through EXTI lines 17, 19 and 20.
 */
 void RTC_IRQHandler(void){
-// Восстанавливаем настройки портов
+
+  // Восстанавливаем настройки портов
   restoreContext();
   // Отмечаем запуск MCU
 #if DEBUG_TIME
@@ -77,44 +78,44 @@ void RTC_IRQHandler(void){
   	wutStop();
   	wutIrqHandler();
   }
-  // =============== Сработал будильник приемника =======================
-  if( RTC->ISR & RTC_ISR_ALRBF ){
-    //Стираем флаг прерывания и будильника вкл. приема, и предачи (прием важнее!)
-    RTC->ISR &= ~(RTC_ISR_ALRAF | RTC_ISR_ALRBF);
-    // Стираем флаг прерывания EXTI
-    EXTI->PR &= EXTI_PR_PR17;
-    // Таймер на прослушивание канала для приема команд = 10мс
-    wutSet(10000);
-    // Включаем прием
-    listenStart();
-    state = STAT_LISTEN_START;
-  }
 // =============== Сработал будильник передачи =======================
-  else if( RTC->ISR & RTC_ISR_ALRAF ){
-//    while( (RTC->ISR & RTC_ISR_RSF) == 0 )
-//    {}
-//    uint32_t dr = RTC->DR;
-//    (void)dr;
-//    uint32_t tr0 = RTC->TR;
-//    uint32_t tr = RTC->TR;
-//    if (tr0 != tr ){
-//      tr = RTC->TR;
-//    }
+  if( RTC->ISR & RTC_ISR_ALRAF ){
 
     uxTime = getRtcTime();
 
-//    wutTest[wutCount++].wutVol = rtc.sec;
-//    if( wutCount == 20){
-//      wutCount = 0;
-//    }
+    rtcLog[rtcLogCount].sec = rtc.ss;
+    rtcLog[rtcLogCount++].state = state;
+    if( (rtcLogCount == 20) || (minToutTx == 0) ){
+      rtcLogCount = 0;
+    }
+
     if( ((rtc.sec % secToutTx) == 0) && ((rtc.min % minToutTx) == 0) ){
       if(state == STAT_READY){
         // Периодическое измерение - измеряем все
         mesure();
+        pkt.payMsgType = MSG_TYPE_BEACON;
         // Настало время передачи: Передаем состояние
-//        csmaRun();
-        state = STAT_RF_CSMA_START;
-        wutSet( TX_DURAT );
+
+//        GPIOA->BRR |= GPIO_Pin_11;
+//        GPIOA->ODR ^= GPIO_Pin_11;
+
+        state = STAT_TX_START;
+        sensDataSend();
+//        wutSet( TX_DURAT );
+      }
+    }
+    else {
+      if( (rtc.sec % secToutRx) == 0 ){
+        // Включаем прием
+//        listenStart();
+//        GPIOA->BSRR |= GPIO_Pin_11;
+
+//        GPIOA->ODR ^= GPIO_Pin_11;
+
+//        rfmSetMode_s( REG_OPMODE_RX );
+        // Режим приема включится через 5мс
+        wutSet(5000);
+        state = STAT_TX_STOP;
       }
     }
     //Clear ALRAF
@@ -163,19 +164,19 @@ void EXTI0_1_IRQHandler(void)
       if( connectFlag == FALSE ){
 
         // Маскируем секунды в будильнике A (TX)
-        setAlrmSecMask();
-        // Включаем будильник B (RX)
-        alrmBOn();
-        secToutTx = 1;
-        minToutTx = 6;
+//        secToutTx = 1;
+//        minToutTx = 6;
+        secToutRx = 5;
         connectFlag = TRUE;
       }
-      // Принята команда - Кодируем и отправляем команду на ИК
-      acData = *((tAcData *)&(rxPkt.payState));
-      if( (acErr = protoPktCod()) == AC_ERR_OK ){
-        acErr = irPktSend();
+      else {
+        // Принята команда - Кодируем и отправляем команду на ИК
+        rxAcState = rxPkt.payAcCmd;
+        if( (acErr = protoPktCod()) == AC_ERR_OK ){
+          acErr = irPktSend();
+        }
+        acState.err = acErr;
       }
-      acData.err = acErr;
       // Обновляем состояние устройства
       mesure();
       wutSet( 50000 );
@@ -186,12 +187,16 @@ void EXTI0_1_IRQHandler(void)
   else if( rfm.mode == MODE_TX ) {
     // Отправили какой-то пакет
     txEnd();
+    // Если соединение еще не установленно
     if( connectFlag == FALSE ){
-      // Если соединение еще не установленно
+      txToutSet();
+    }
+    if( pkt.payMsgType == MSG_TYPE_BEACON ){
+//      GPIOA->BRR |= GPIO_Pin_11;
+      GPIOA->ODR ^= GPIO_Pin_11;
       // Через 50мс будем включать прослушивание канала
       wutSet(50000);
       state = STAT_TX_STOP;
-//      txToutSet();
     }
     else {
       wutStop();
@@ -303,7 +308,7 @@ void TIM22_IRQHandler( void ){
   restoreContext();
 
   if( TIM22->SR & TIM_SR_UIF){
-    GPIOA->BRR |= GPIO_Pin_11;
+//    GPIOA->BRR |= GPIO_Pin_11;
 //      IR_TX_PORT->MODER = (IR_TX_PORT->MODER & ~(0x3 << (IR_TX_PIN_NUM * 2))) | (0x2 << (IR_TX_PIN_NUM * 2));
 
     uint16_t tmp;
@@ -319,7 +324,7 @@ void TIM22_IRQHandler( void ){
     TIM22->SR &= ~TIM_SR_UIF;
   }
   else if( TIM22->SR & TIM_SR_CC1IF){
-    GPIOA->BSRR |= GPIO_Pin_11;
+//    GPIOA->BSRR |= GPIO_Pin_11;
     // Пульс закончился
     if( txFieldCount > field0Num ){
       // Передача закончена - все выключаем
@@ -384,25 +389,33 @@ void TIM2_IRQHandler( void ){
 }
 
 inline void txToutSet( void ){
-  if( connectCount == 39 ){
-    secToutTx = 1;
-    minToutTx = 6;
-  }
-  else {
-    connectCount++;
-    if( connectCount == 30){
-      secToutTx = 1;
-      minToutTx = 2;
-    }
-    else if( connectCount == 20){
+  if( connectCount < 40 ){
+//  if( connectCount == 39 ){
+//    secToutTx = 1;
+//    minToutTx = 6;
+//  }
+//  else {
+//    if( connectCount == 29){
+//      secToutTx = 1;
+//      minToutTx = 2;
+//    }
+//    else if( connectCount == 19){
+//      // Переводим будильник на минутный интервал
+//      setAlrmSecMask();
+//      secToutTx = 1;
+//      minToutTx = 1;
+//    }
+//    else if( connectCount == 9){
+//      secToutTx = 30;
+//      minToutTx = 1;
+//    }
+//  }
+    if( connectCount == 2){
       // Переводим будильник на минутный интервал
       setAlrmSecMask();
       secToutTx = 1;
       minToutTx = 1;
     }
-    else if( connectCount == 10){
-      secToutTx = 30;
-      minToutTx = 1;
-    }
+    connectCount++;
   }
 }

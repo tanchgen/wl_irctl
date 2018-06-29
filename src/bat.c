@@ -9,6 +9,7 @@
 #include "stm32l0xx.h"
 #include "main.h"
 #include "process.h"
+#include "proto.h"
 #include "bat.h"
 
 // Batary volt sensor init function
