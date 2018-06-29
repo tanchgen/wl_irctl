@@ -56,7 +56,7 @@ uint8_t volMax[6] = {1, 4, 14, 4, 4, 15};   // Максилмальное зна
 uint16_t anikHeader0Field[2] = {344, 172};
 // Длительности полей паузы
 uint16_t anikMidPauseField[2] = {25, 763};
-uint16_t anikMidPause2Field = 25;
+uint16_t anikMidPause2Field = 52;
 
 // Описание ИК-пакета протокола AERONIK
 tFieldArr anikProtoField[6] = {
