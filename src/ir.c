@@ -15,16 +15,16 @@
 #include "ir.h"
 
 // Массив НАЧАЛЬНОГО пакета неизвестного протокола
-uint16_t __aligned(4) ir0Pkt[256];
+uint16_t __aligned(4) ir0Pkt[FIELD_NUM_MAX];
 
 // Массив НЕ НАЧАЛЬНОГО пакета (приятый или отправляемый пакет)
-uint16_t __aligned(4) irPkt[256];
+uint16_t __aligned(4) irPkt[FIELD_NUM_MAX];
 
 // Указатель на пакет: НАЧАЛЬНЫЙ, НЕ начальный, отправляемый
 uint16_t *pIrPkt;
 
 // Структура изменяемых полей
-tRxFieldLst irDiffField[4+120+30+30+30];
+tRxFieldLst irDiffField[DIFF_LIST_SIZE];
 
 // Структура изменяемых полей
 tRxFieldLst * pIrDiffField = irDiffField;
@@ -44,8 +44,8 @@ uint8_t irRxGetFlag = RESET;
 uint16_t irRxIndex = 0;
 // Состояние (текущий параметр) обучения
 eRxStat rxStat;
-uint8_t field0Num;                  // Соличество полей в НАЧАЛЬНОМ пакете
-uint8_t txFieldCount;               // Счетчик полей, передаваемых по ИК-каналу
+uint16_t field0Num;                  // Соличество полей в НАЧАЛЬНОМ пакете
+uint16_t txFieldCount;               // Счетчик полей, передаваемых по ИК-каналу
 
 uint16_t rxEdgeCnt;
 uint8_t headerFlag = FALSE;
@@ -221,7 +221,9 @@ void irRxProcess( void ){
 //    EXTI->RTSR |= IR_RX_PIN;
   if( c > 9 ){
     // Сохраняем длительность очередного импульса/паузы в массив 0-го пакета
-    *(pIrPkt + irRxIndex++) = c;
+    if(irRxIndex < FIELD_NUM_MAX){
+  	  *(pIrPkt + irRxIndex++) = c;
+    }
   }
   else if( c == 0){
 #if STOP_EN
@@ -265,18 +267,21 @@ uint8_t learnProcess( void ){
       switch( onOffFlag ){
         case -1:
           // Сравниваем НУЛЕВОЙ пакет с OFF-пакетом
-          if( (rec = rxPktCmp( rxStat, 0 )) == 0 ){
-            // Различий не обнаружено - так быть не должно
-            // TODO: Обработка ошибки обучения (может длинный зуммер?)
-          }
-          else if ( rec > 0 ){
-            buzzerShortPulse();
-            onOffFlag = OFF;
-          }
+//          if( (rec = rxPktCmp( rxStat, 0 )) == 0 ){
+//            // Различий не обнаружено - так быть не должно
+//            // TODO: Обработка ошибки обучения (может длинный зуммер?)
+//          }
+//          else if ( rec > 0 ){
+//            buzzerShortPulse();
+//            onOffFlag = OFF;
+//          }
+          rec = rxPktCmp( rxStat, 0 );
+          buzzerShortPulse();
+          onOffFlag = OFF;
           break;
         case OFF:
           // Сравниваем НУЛЕВОЙ пакет с ON-пакетом
-          if( (rec = rxPktCmp( rxStat, 0 )) > 0 ){
+          if( (rec = rxPktCmp( rxStat, 1 )) > 0 ){
             // Различий не обнаружено - так быть не должно
             learnReset();
           }
@@ -284,8 +289,12 @@ uint8_t learnProcess( void ){
             buzzerShortPulse();
             onOffFlag = ON;
             field0Num = irRxIndex;
+            uint32_t * eep0 = (uint32_t *)eeIrProtoBak.fld0Pkt;
+            uint32_t * p0 = (uint32_t *)ir0Pkt;
             // Сохраняем в EEPROM
-            memcpy( eeIrProtoBak.fld0Pkt, ir0Pkt, field0Num * 2 );
+            for( uint16_t i = 0; i < ((field0Num + 1)/2); i++ ){
+            	*eep0++ = *p0++;
+            }
             eeIrProtoBak.fld0Num = field0Num;
             eeIrProtoBak.protoName = protoName;
           }
@@ -353,7 +362,7 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
   // Указатель на backup-запись в EEPROM
   eeFldList = eeIrProtoBak.diffField + (fieldList - irDiffField);
 
-  for( uint8_t i = 0; i < irRxIndex; i++ ){
+  for( uint16_t i = 0; i < irRxIndex; i++ ){
     if( irDurCmp( ir0Pkt[i], irPkt[i], 20) ){
       // Несовпадение поля
       diffCnt++;
@@ -372,7 +381,7 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
       eeFldList->fieldNum = i;
       eeFldList++->fieldDur = irPkt[i];
 
-      if( fieldList > (irDiffField + sizeof(irDiffField)) ) {
+      if( fieldList > (irDiffField + (sizeof(tRxFieldLst) * DIFF_LIST_SIZE) ) ) {
         // Указатель на различающиеся поля превысил допустимый - выходим
         diffCnt = -1;
         goto exit;
@@ -391,16 +400,16 @@ int8_t rxPktCmp( eRxStat rxSt, uint8_t paramCnt ){
   }
   pIrDiffField = fieldList;
   if(onOffFlag != OFF){
-    if( diffCnt < 14){
+//    if( diffCnt < 14){
       rxFieldQuant[ sellNum ] = diffCnt;
       // Тоже делаем в BackUp EEPROM
       eeIrProtoBak.fldDiffQuant[ sellNum ] = diffCnt;
-    }
-    else {
-      // Слишком большое количество изменений - ошибка пакета
-      diffCnt = -1;
-      goto exit;
-    }
+//    }
+//    else {
+//      // Слишком большое количество изменений - ошибка пакета
+//      diffCnt = -1;
+//      goto exit;
+//    }
 
   }
 exit:

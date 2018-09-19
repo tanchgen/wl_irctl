@@ -83,13 +83,14 @@ void RTC_IRQHandler(void){
 
     uxTime = getRtcTime();
 
-    rtcLog[rtcLogCount].sec = rtc.ss;
-    rtcLog[rtcLogCount++].state = state;
-    if( (rtcLogCount == 20) || (minToutTx == 0) ){
-      rtcLogCount = 0;
-    }
+// Для дебаженья
+//    rtcLog[rtcLogCount].sec = rtc.ss;
+//    rtcLog[rtcLogCount++].state = state;
+//    if( (rtcLogCount == 20) || (minToutTx == 0) ){
+//      rtcLogCount = 0;
+//    }
 
-    if( ((rtc.sec % secToutTx) == 0) && ((rtc.min % minToutTx) == 0) ){
+    if( (uxTime % secToutTx) == 0 ){
       if(state == STAT_READY){
         // Периодическое измерение - измеряем все
         mesure();
@@ -105,7 +106,7 @@ void RTC_IRQHandler(void){
       }
     }
     else {
-      if( (rtc.sec % secToutRx) == 0 ){
+      if( (uxTime % secToutRx) == 0 ){
         // Включаем прием
 //        listenStart();
 //        GPIOA->BSRR |= GPIO_Pin_11;
@@ -163,9 +164,11 @@ void EXTI0_1_IRQHandler(void)
       driveData.cmdNum = rxPkt.payLoad.cmdMsg.cmdNum;
       if( connectFlag == FALSE ){
 
+    	// Устанавливаем будильник на ежесекундное просыпание
+    	  cleanAlrmSecMask();
         // Маскируем секунды в будильнике A (TX)
-//        secToutTx = 1;
-//        minToutTx = 6;
+        secToutTx = 360;
+
         secToutRx = 5;
         connectFlag = TRUE;
       }
@@ -366,11 +369,14 @@ void TIM2_IRQHandler( void ){
     restCtx = restoreCntext0;
   }
 
-  // Примой счет - прием (обучение)
   // Длительность паузы более 100мс -> пакет принят.
-//    buzzerShortPulse();
-  // Обнуляем счетчик импульсов и пауз
-  if( irRxIndex > 0 ){
+	if( irRxIndex == FIELD_NUM_MAX ){
+		// Принят слишком длинный пакет - ошибка
+    learnReset();
+    irRxGetFlag = SET;
+    irRxIndex = 0;
+	}
+	else if( irRxIndex > 0 ){
     if( protoName == PROTO_NONAME ){
       protoName = learnProcess();
       if( protoName != PROTO_NONAME ){
@@ -397,32 +403,24 @@ void TIM2_IRQHandler( void ){
 
 inline void txToutSet( void ){
   if( connectCount < 40 ){
-//  if( connectCount == 39 ){
-//    secToutTx = 1;
-//    minToutTx = 6;
-//  }
-//  else {
-//    if( connectCount == 29){
-//      secToutTx = 1;
-//      minToutTx = 2;
-//    }
-//    else if( connectCount == 19){
-//      // Переводим будильник на минутный интервал
-//      setAlrmSecMask();
-//      secToutTx = 1;
-//      minToutTx = 1;
-//    }
-//    else if( connectCount == 9){
-//      secToutTx = 30;
-//      minToutTx = 1;
-//    }
-//  }
-    if( connectCount == 2){
-      // Переводим будильник на минутный интервал
-      setAlrmSecMask();
-      secToutTx = 1;
-      minToutTx = 1;
+    if( connectCount == 39 ){
+      secToutTx = 360;
+  //	  minToutTx = 6;
     }
-    connectCount++;
+    else if( connectCount == 29){
+      secToutTx = 120;
+  //	  minToutTx = 2;
+    }
+    else if( connectCount == 19){
+     // Переводим будильник на минутный интервал
+      setAlrmSecMask();
+      secToutTx = 60;
+  //	  minToutTx = 1;
+    }
+    else if( connectCount == 9){
+      secToutTx = 30;
+  //	  minToutTx = 1;
+    }
+      connectCount++;
   }
 }

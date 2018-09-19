@@ -43,7 +43,7 @@ void batInit(void){
     ADC1->CALFACT = eeBackup.adcCal;
   }
 
-	// Выключаем внутренний регулятор напряжения
+  // Выключаем внутренний регулятор напряжения
   ADC1->CR &= ~ADC_CR_ADVREGEN;
   RCC->APB2ENR &= ~RCC_APB2ENR_ADC1EN;
 }

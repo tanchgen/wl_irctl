@@ -1,4 +1,14 @@
-// ----------------------------------------------------------------------------
+//**************************************************
+//* Разработано: "НИЛ АП",ООО, г. Таганрог.        *
+//* Программирование: Танчин Г.В.                  *
+//* Дата последней редакции программы: 29.06.2018г.*
+//**************************************************
+/*
+ * main.c
+ *
+ *  Created on: 12 мая 2018 г.
+ *      Author: Gennady Tanchin <g.tanchin@yandex.ru>
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,8 +120,17 @@ int main(int argc, char* argv[])
 // ################## ДЛЯ ТЕСТИРОВАНИЯ ################################
 //  acCtrlTest();
 //
-//  while(1)
-//  {}
+//  while(1){
+//    // Включаем кондиционер
+//    rxAcState.onoff = ON;
+//    protoPktCod();
+//    irPktSend();
+//    mDelay(20000);
+//    rxAcState.onoff = OFF;
+//    irPktSend();
+//    buzzerLongPulse();
+//    mDelay(120000);
+//  }
 // ####################################################################
 
   rfmInit();
@@ -135,7 +154,6 @@ int main(int argc, char* argv[])
 #endif
 
 //  restoreContext();
-  // Infinite loop
   while (1){
 //  	GPIOB->ODR ^= GPIO_Pin_3;
 #if STOP_EN
@@ -143,7 +161,6 @@ int main(int argc, char* argv[])
 #endif
     mDelay(1000);
   }
-  // Infinite loop, never return.
 }
 
 static inline void mainInit( void ){
@@ -280,7 +297,7 @@ void saveCntext(void){
 #endif // STOP_EN
 }
 
-void saveCntext(void)
+void saveCntext0(void)
 {}
 
 void acCtrlTest( void ){
