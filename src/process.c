@@ -110,7 +110,7 @@ void wutIrqHandler( void ){
       // Никакого сообщения не пришло - засыпаем
       rfmSetMode_s( REG_OPMODE_SLEEP );
 
-//      GPIOA->ODR ^= GPIO_Pin_11;
+      GPIOA->ODR ^= GPIO_Pin_11;
 
       state = STAT_READY;
       break;

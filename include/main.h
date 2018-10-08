@@ -3,7 +3,7 @@
 // Includes ------------------------------------------------------------------
 #include "stm32l0xx.h"
 
-#define STOP_EN		0
+#define STOP_EN		1
 
 #ifndef NVIC_PRIORITYGROUP_0
 

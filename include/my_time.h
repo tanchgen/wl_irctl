@@ -64,7 +64,6 @@ extern volatile uint8_t sendToutFlag;
 
 extern __IO uint32_t myTick;
 
-//extern volatile uint8_t minToutTx;
 extern volatile uint16_t secToutTx;
 extern volatile uint8_t secToutRx;
 

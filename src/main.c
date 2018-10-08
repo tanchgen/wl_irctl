@@ -27,7 +27,7 @@
 //volatile uint32_t mTick;
 
 EEMEM tEeBackup eeBackup;     // Структура сохраняемых в EEPROM параметров
-//tEeBackup eeBackup;             // Структура сохраняемых в EEPROM параметров
+//tEeBackup eeBackup;         // Структура сохраняемых в EEPROM параметров
 
 EEMEM __aligned(4) struct eeProtoBak eeIrProtoBak;
 

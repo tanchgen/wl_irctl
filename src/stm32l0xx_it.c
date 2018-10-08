@@ -111,7 +111,7 @@ void RTC_IRQHandler(void){
 //        listenStart();
 //        GPIOA->BSRR |= GPIO_Pin_11;
 
-//        GPIOA->ODR ^= GPIO_Pin_11;
+        GPIOA->ODR ^= GPIO_Pin_11;
 
 //        rfmSetMode_s( REG_OPMODE_RX );
         // Режим приема включится через 5мс
@@ -167,14 +167,14 @@ void EXTI0_1_IRQHandler(void)
     	// Устанавливаем будильник на ежесекундное просыпание
     	  cleanAlrmSecMask();
         // Маскируем секунды в будильнике A (TX)
-        secToutTx = 360;
-
+//        secToutTx = 360;
         secToutRx = 5;
         connectFlag = TRUE;
       }
       else {
         // Принята команда - Кодируем и отправляем команду на ИК
-        rxAcState = rxPkt.payAcCmd;
+        wutSet( 50000 );
+				rxAcState = rxPkt.payAcCmd;
         if( (acErr = protoPktCod()) == AC_ERR_OK ){
           acErr = irPktSend();
         }
@@ -182,7 +182,6 @@ void EXTI0_1_IRQHandler(void)
       }
       // Обновляем состояние устройства
       mesure();
-      wutSet( 50000 );
       state = STAT_RF_RX_OK;
     }
 
@@ -403,24 +402,20 @@ void TIM2_IRQHandler( void ){
 
 inline void txToutSet( void ){
   if( connectCount < 40 ){
-    if( connectCount == 39 ){
-      secToutTx = 360;
-  //	  minToutTx = 6;
-    }
-    else if( connectCount == 29){
-      secToutTx = 120;
-  //	  minToutTx = 2;
-    }
-    else if( connectCount == 19){
-     // Переводим будильник на минутный интервал
-      setAlrmSecMask();
-      secToutTx = 60;
-  //	  minToutTx = 1;
-    }
-    else if( connectCount == 9){
-      secToutTx = 30;
-  //	  minToutTx = 1;
-    }
+//    if( connectCount == 39 ){
+//      secToutTx = 360;
+//    }
+//    else if( connectCount == 29){
+//      secToutTx = 120;
+//    }
+//    else if( connectCount == 19){
+//     // Переводим будильник на минутный интервал
+//      setAlrmSecMask();
+//      secToutTx = 60;
+//    }
+//    else if( connectCount == 9){
+//      secToutTx = 30;
+//    }
       connectCount++;
   }
 }

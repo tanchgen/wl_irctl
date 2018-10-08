@@ -17,7 +17,7 @@
 volatile tRtc rtc;
 volatile tUxTime uxTime;
 volatile uint8_t sendToutFlag = SET;
-//volatile uint8_t minToutTx;
+// volatile uint8_t minToutTx;
 volatile uint16_t secToutTx;
 volatile uint8_t secToutRx;
 
