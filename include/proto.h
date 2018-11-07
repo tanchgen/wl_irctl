@@ -16,12 +16,16 @@
 #define FAN_VAL_COUNT_MAX       5
 #define SWING_VAL_COUNT_MAX     5
 
-#define ONOFF_FIELDL_COUNT_MAX     10
-#define TEMP_FIELD_COUNT_MAX      20
-#define MODE_FIELD_COUNT_MAX      10
-#define FAN_FIELD_COUNT_MAX       10
-#define SWING_FIELD_COUNT_MAX     10
+#define ONOFF_FIELDL_COUNT_MAX     20
+#define TEMP_FIELD_COUNT_MAX      120
+#define MODE_FIELD_COUNT_MAX      30
+#define FAN_FIELD_COUNT_MAX       30
+#define SWING_FIELD_COUNT_MAX     30
+#define DIFF_LIST_SIZE 		ONOFF_FIELDL_COUNT_MAX + TEMP_FIELD_COUNT_MAX + \
+														MODE_FIELD_COUNT_MAX + FAN_FIELD_COUNT_MAX + \
+														SWING_FIELD_COUNT_MAX
 
+#define FIELD_NUM_MAX					448
 // ============== ПАРАМЕТРЫ РАБОТЫ ====================
 // Режимы работы
 enum eMode{
@@ -94,7 +98,7 @@ typedef enum {
 
 typedef struct {
   uint8_t mask;
-  uint8_t pos;
+  uint16_t pos;
   const uint8_t * paramChange; // Таблица подмены значений параметров
 } tParamPos;
 
@@ -115,10 +119,10 @@ typedef struct {
   const tProtoPkt0 * protoFieldArr0;       // Указатель структуры массива полей НАЧАЛЬНОГО заголовка
   const tParamPos * paramPos;
   uint8_t (*crc)( void );
+  uint16_t fieldNum;               // Общее количество полей в протоколе
   uint8_t markDur;                // Длительность маркера (импульса)
   uint8_t space0Dur;              // Длительность паузы "0"
   uint8_t space1Dur;              // Длительность паузы "1"
-  uint8_t fieldNum;               // Общее количество полей в протоколе
 } tProtoDesc;
 
 enum  eFieldType {
@@ -127,22 +131,22 @@ enum  eFieldType {
 };
 
 typedef struct {
-  uint8_t fieldNum;         // Порядковый номер поля в пакете
   uint16_t fieldDur;        // Продолжительность поля в 10мкс
+  uint16_t fieldNum;         // Порядковый номер поля в пакете
 } tRxFieldLst;
 
-struct eeProtoBak {
-  uint16_t fld0Pkt[256];
-  // Структура изменяемых полей
-  tRxFieldLst diffField[4+120+30+30+30];
+struct __packed eeProtoBak {
+  uint16_t fld0Pkt[FIELD_NUM_MAX];
   // Массив указателей на структуры изменяемых полей
   tRxFieldLst * pfldDiff[ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + \
                          FAN_VAL_COUNT_MAX + SWING_VAL_COUNT_MAX];
+  // Структура изменяемых полей
+  tRxFieldLst diffField[DIFF_LIST_SIZE];
   // Массив количества изменных полей для каждого параметра
   uint8_t fldDiffQuant[ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + \
                          FAN_VAL_COUNT_MAX + SWING_VAL_COUNT_MAX];
+  uint16_t fld0Num;
   eProtoName protoName;
-  uint8_t fld0Num;
 };
 
 // Структура измеряемых датчиком параметров
@@ -164,11 +168,11 @@ extern tRxFieldLst * pIrField[];            // Массив указателей
 extern tRxFieldLst irDiffField[];           // Список отличающихся от НАЧАЛЬНОГО полей
 
 
-uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len );
+uint8_t protoDecod( uint16_t *pIrPkt, uint16_t len );
 uint8_t protoPktCod( void );
 uint8_t protoDefCod( tProtoDesc * prDesc );
 uint8_t protoNonDefCod( void );
-uint8_t irProtoRestore( void );
+uint16_t irProtoRestore( void );
 
 // Сравнение длительностей полей в ИК-пакете
 inline int8_t irDurCmp( uint16_t dur0, uint16_t dur, uint8_t percent){

@@ -17,8 +17,8 @@
 volatile tRtc rtc;
 volatile tUxTime uxTime;
 volatile uint8_t sendToutFlag = SET;
-volatile uint8_t minToutTx;
-volatile uint8_t secToutTx;
+// volatile uint8_t minToutTx;
+volatile uint16_t secToutTx;
 volatile uint8_t secToutRx;
 
 uint8_t timeCorr;
@@ -43,6 +43,8 @@ void rtcStartInit(void){
   PWR->CR |= PWR_CR_DBP;
   RCC->CSR |= RCC_CSR_RTCRST;
   RCC->CSR &= ~RCC_CSR_RTCRST;
+  RCC->CSR |= RCC_CSR_LSEDRV_1;
+
   // Enable the LSE
   RCC->CSR |= RCC_CSR_LSEON;
   // Wait while it is not ready
@@ -103,8 +105,6 @@ void rtcWorkInit(  void ) {
   // Устанавливаем будильник - Alarm A every day, every hour, every minute, every second
   RTC->ALRMAR |= RTC_ALRMAR_MSK4 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK2 | RTC_ALRMAR_MSK1;
 //  RTC->ALRMAR |= RTC_ALRMAR_MSK4 | RTC_ALRMAR_MSK3 | RTC_ALRMAR_MSK2;
-  // Alarm B every day, every hour, every minute, every second
-  RTC->ALRMBR |= RTC_ALRMBR_MSK4 | RTC_ALRMBR_MSK3 | RTC_ALRMBR_MSK2 | RTC_ALRMBR_MSK1;
   // Разрешаем пока только будильник передачи
   RTC->CR |= (RTC_CR_ALRAIE | RTC_CR_ALRAE);
 
@@ -143,6 +143,25 @@ void setAlrmSecMask( void ){
   RTC->WPR = 0x64;
 }
 
+void cleanAlrmSecMask( void ){
+  RTC->WPR = 0xCA;
+  RTC->WPR = 0x53;
+
+  // ======= Конфигурация будильников A и B: Будильник A - ПЕРЕДАЧА, Будильник B - ПРИЕМ ========
+  // Disable alarm A to modify it
+  RTC->CR &= ~RTC_CR_ALRAE;
+  while( (RTC->ISR & RTC_ISR_ALRAWF) != RTC_ISR_ALRAWF )
+  {}
+  // Alarm A every day, every hour, every minute, every second
+  RTC->ALRMAR = RTC->ALRMAR | RTC_ALRMBR_MSK1;
+  // Разрешаем пока только будильник передачи
+  RTC->CR |= (RTC_CR_ALRAIE | RTC_CR_ALRAE);
+
+  // Disable write access
+  RTC->WPR = 0xFE;
+  RTC->WPR = 0x64;
+}
+
 
 void timeInit( void ) {
   uint32_t tmpDr;
@@ -167,7 +186,7 @@ void timeInit( void ) {
   RTC_SetTime( &rtc );
 
   // Интервал будильника - передача минуты
-  minToutTx = 1;
+//  minToutTx = 1;
   // Интервал будильника - передача секунды
   secToutTx = 10;
 //  secToutTx = 1;

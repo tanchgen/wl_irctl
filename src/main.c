@@ -1,4 +1,14 @@
-// ----------------------------------------------------------------------------
+//**************************************************
+//* Разработано: "НИЛ АП",ООО, г. Таганрог.        *
+//* Программирование: Танчин Г.В.                  *
+//* Дата последней редакции программы: 29.06.2018г.*
+//**************************************************
+/*
+ * main.c
+ *
+ *  Created on: 12 мая 2018 г.
+ *      Author: Gennady Tanchin <g.tanchin@yandex.ru>
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +27,7 @@
 //volatile uint32_t mTick;
 
 EEMEM tEeBackup eeBackup;     // Структура сохраняемых в EEPROM параметров
-//tEeBackup eeBackup;             // Структура сохраняемых в EEPROM параметров
+//tEeBackup eeBackup;         // Структура сохраняемых в EEPROM параметров
 
 EEMEM __aligned(4) struct eeProtoBak eeIrProtoBak;
 
@@ -50,6 +60,9 @@ static inline void sysClockInit(void);
 static inline void startPwrInit( void );
 static inline void eepromUnlock( void );
 
+
+void (*saveCtx)(void);
+void (*restCtx)(void);
 
 void acCtrlTest( void );
 
@@ -85,14 +98,14 @@ int main(int argc, char* argv[])
   // Включаем обработку входа ИК-приемника
   EXTI->IMR |= IR_RX_PIN;
 
-  saveContext();
+  saveCtx();
 // Засыпаем до нажатия на кнопку
   while( btn.tOnSec == 0 ) {
 #if STOP_EN
     __WFI();
 #endif
   }
-  restoreContext();
+  restCtx();
 
   // Ждем определения протокола (обучения)
   while( field0Num == 0 )
@@ -107,8 +120,17 @@ int main(int argc, char* argv[])
 // ################## ДЛЯ ТЕСТИРОВАНИЯ ################################
 //  acCtrlTest();
 //
-//  while(1)
-//  {}
+//  while(1){
+//    // Включаем кондиционер
+//    rxAcState.onoff = ON;
+//    protoPktCod();
+//    irPktSend();
+//    mDelay(20000);
+//    rxAcState.onoff = OFF;
+//    irPktSend();
+//    buzzerLongPulse();
+//    mDelay(120000);
+//  }
 // ####################################################################
 
   rfmInit();
@@ -126,13 +148,12 @@ int main(int argc, char* argv[])
 //  csmaRun();
 
 //  GPIOB->MODER = (GPIOB->MODER & ~GPIO_MODER_MODE3) | GPIO_MODER_MODE3_0;
-  saveContext();
+  saveCtx();
 #if STOP_EN
   __WFI();
 #endif
 
 //  restoreContext();
-  // Infinite loop
   while (1){
 //  	GPIOB->ODR ^= GPIO_Pin_3;
 #if STOP_EN
@@ -140,7 +161,6 @@ int main(int argc, char* argv[])
 #endif
     mDelay(1000);
   }
-  // Infinite loop, never return.
 }
 
 static inline void mainInit( void ){
@@ -189,6 +209,8 @@ static inline void startPwrInit( void ){
 //#else
 //
 //#endif // STOP_EN
+  saveCtx = saveCntext;
+  restCtx = restoreCntext;
 }
 
 static inline void eepromUnlock( void ){
@@ -214,7 +236,7 @@ static inline void eepromUnlock( void ){
 *               weren't already disabled when this function was called.
 * Date:         09-23-16
 *******************************************************************************/
-void restoreContext(void){
+void restoreCntext(void){
 #if STOP_EN
 	// disable interrupts if they weren't already disabled
 	__disable_irq();
@@ -231,6 +253,8 @@ void restoreContext(void){
 #endif //STOP_EN
 }
 
+void restoreCntext0(void)
+{}
 
 /*******************************************************************************
 * Function:			Idd_SaveContext
@@ -246,7 +270,7 @@ void restoreContext(void){
 *               disabled when this function was called.
 * Date:         09-23-16
 *******************************************************************************/
-void saveContext(void){
+void saveCntext(void){
 #if STOP_EN
 
 	// disable interrupts
@@ -273,6 +297,8 @@ void saveContext(void){
 #endif // STOP_EN
 }
 
+void saveCntext0(void)
+{}
 
 void acCtrlTest( void ){
   rxAcState = acState;

@@ -64,8 +64,7 @@ extern volatile uint8_t sendToutFlag;
 
 extern __IO uint32_t myTick;
 
-extern volatile uint8_t minToutTx;
-extern volatile uint8_t secToutTx;
+extern volatile uint16_t secToutTx;
 extern volatile uint8_t secToutRx;
 
 //// Для тестирования - массив интервалов таймера WUT
@@ -80,6 +79,7 @@ void rtcStartInit(void);
 void rtcWorkInit(void);
 void timeInit( void );
 void setAlrmSecMask( void );
+void cleanAlrmSecMask( void );
 void alrmBOn(  void );
 
 // Получение системного мремени

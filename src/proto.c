@@ -18,7 +18,7 @@
 
 // Установка параметров для Определенного
 uint8_t protoDefParamSet( uint16_t * arr, const tParamPos * pprm );
-int8_t areaFind( tFieldArr * pFldArr, uint8_t *idx );
+int8_t areaFind( tFieldArr * pFldArr, uint16_t *idx );
 uint8_t acParamValue( uint8_t param );
 
 
@@ -41,8 +41,8 @@ tAcData acState = {
     ON,                 // Включить
     AC_MODE_COOL,       // Охлаждение
     TEMP_23,            // 23гр.Ц
-    FAN_SPEED_AUTO,     // Скорость - авто
-    SWING_POS_AUTO,     // Положение диффузора
+    FAN_SPEED_1,     // Скорость - авто
+    SWING_POS_1,     // Положение диффузора
     AC_ERR_OK           // Ошибка протокола
 };
 // ---------- Принятый от центрального устройства --------------------
@@ -172,8 +172,8 @@ uint8_t smsgCrc( void ){
  */
 // Описание протоколов
 tProtoDesc protoDesc[PROTO_NUM] = {
-    {anikProtoField, &anikPkt0, anikParams, anikCrc, 25, 21, 61, 0},       // Протокол AERONIK
-    {smsgProtoField, &smsgPkt0, smsgParams, smsgCrc, 18, 18, 180, 0},      // Протокол SAMSUNG
+    {anikProtoField, &anikPkt0, anikParams, anikCrc, 0, 25, 21, 61},       // Протокол AERONIK
+    {smsgProtoField, &smsgPkt0, smsgParams, smsgCrc, 0, 18, 18, 180},      // Протокол SAMSUNG
     {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Daikin
     {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Panasonic
     {NULL, NULL, NULL, NULL, 0, 0, 0, 0},                    // Протокол Mitsubishi
@@ -186,15 +186,15 @@ tProtoDesc protoDesc[PROTO_NUM] = {
 /*################################################################################################*/
 
 // Декодирование принятого поля
-uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len ){
+uint8_t protoDecod( uint16_t *pIrPkt, uint16_t len ){
   // Декодирование НАЧАЛЬНОГО пакета
   uint8_t protoCnt;
-  uint8_t fldCnt;
+  uint16_t fldCnt;
   int8_t areaNum;
 
   //
   for( protoCnt = PROTO_AERONIK; (protoCnt < PROTO_NONAME); protoCnt++ ){
-    uint8_t i;
+    uint16_t i;
 
     tFieldArr * pPrDsc = protoDesc[protoCnt].protoFieldArr;
 
@@ -261,7 +261,7 @@ uint8_t protoDecod( uint16_t *pIrPkt, uint8_t len ){
   return protoCnt;
 }
 
-int8_t areaFind( tFieldArr * pFldArr, uint8_t *idx ){
+int8_t areaFind( tFieldArr * pFldArr, uint16_t *idx ){
   int8_t areaNum;
 
   for( areaNum = 0 ; ; areaNum++, pFldArr++ ){
@@ -342,7 +342,7 @@ exitLabel:
 uint8_t protoDefCod( tProtoDesc * prDesc ){
   uint8_t rec = 0;
   int8_t areaNum;
-  uint8_t i;
+  uint16_t i;
 //  uint8_t bitIdx = 0;
 
   tFieldArr * pField = prDesc->protoFieldArr;
@@ -362,7 +362,7 @@ uint8_t protoDefCod( tProtoDesc * prDesc ){
   // Формируем Массив сырых данных ( длительностей импульсов и пауз ) пакета
 
   for( i = 0; i < 255; i++ ) {
-    uint8_t pi = i;
+    uint16_t pi = i;
     areaNum = areaFind( pField, &pi);
     if( areaNum < 0){
       // Массив заполнен
@@ -399,7 +399,7 @@ uint8_t protoNonDefCod( void ){
   uint8_t rec = 0;
 
   // Сначала копируем НАЧАЛЬНЫЙ пакет в массив полей для отправки
-  for( uint8_t i = 0; i < field0Num; i++ ){
+  for( uint16_t i = 0; i < field0Num; i++ ){
     irPkt[i] = ir0Pkt[i];
   }
   // Теперь переписываем поля в соответсвии с параметрами
@@ -503,8 +503,8 @@ uint8_t acParamValue( uint8_t param ){
   return value;
 }
 
-uint8_t irProtoRestore( void ){
-  uint8_t fldNum = 0;
+uint16_t irProtoRestore( void ){
+  uint16_t fldNum = 0;
 
   if( (fldNum = eeIrProtoBak.fld0Num) == 0 ){
     // Восстанавливать нечего - ничего не сохранено
@@ -521,7 +521,7 @@ uint8_t irProtoRestore( void ){
 
   // Восстанавление НЕОПРЕДЕЛЕННОГО протокола
   memcpy( ir0Pkt, eeIrProtoBak.fld0Pkt, fldNum * 2);
-  memcpy( irDiffField, eeIrProtoBak.diffField, sizeof(tRxFieldLst) * 214 );
+  memcpy( irDiffField, eeIrProtoBak.diffField, sizeof(tRxFieldLst) * DIFF_LIST_SIZE );
 
 #define SELL_NUM (ONOFF_VAL_COUNT_MAX + MODE_VAL_COUNT_MAX + TEMP_VAL_COUNT_MAX + FAN_VAL_COUNT_MAX + SWING_VAL_COUNT_MAX)
   memcpy( pIrField, eeIrProtoBak.pfldDiff, SELL_NUM * sizeof(tRxFieldLst) );
