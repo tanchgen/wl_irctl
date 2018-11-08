@@ -80,10 +80,11 @@ typedef struct __packed  {
 //  uint8_t rssi;         // Мощность принимаемого радиосигнала
 //} tDriveData;
 //
+
 typedef struct{
-  unsigned int sensErr : 1;
-  unsigned int sensCplt : 1;
-  unsigned int batCplt : 1;
+  uint8_t sensErr : 1;
+  uint8_t netCfg: 1;
+  uint8_t connect: 1;
 } tFlags;
 
 //extern volatile uint32_t mTick;

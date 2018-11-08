@@ -390,9 +390,73 @@ static inline void rfmRegSetup( void ){
   rfmRegWrite( REG_PACK_CFG, REG_PACK_CFG_VAR | REG_PACK_CFG_CRCON | REG_PACK_CFG_ADDRBRD);
 
   // Настройка минимальной рабочей границы  RSSI ( -114дБ )
+  // rfmRegWrite( REG_Rstatic inline void rfmRegSetup( void ){
+  //  Усыпляем радиомодуль
+  rfmRegWrite( REG_OPMODE,  REG_OPMODE_SLEEP );
+  while( (rfmRegRead(REG_FLAG1) & REG_IF1_MODEREADY) != REG_IF1_MODEREADY)
+  {}
+  rfm.mode = MODE_SLEEP;
+
+  // Калибровка RC-генратора
+  rfmRcCal();
+
+  // Настройка DIO:
+  // DIO0 - 0b00  // RX- CrcOk, TX- PacketSent
+  // DIO1 - 0b01  // RX- FifoFull, TX- FifoFull
+  // DIO2 - 0b00  // RX- FifoNotEmpty, TX- FifoNotEmpty
+  // // DIO3 - 0b10  // RX- SyncAddr, TX - ----
+  // DIO3 - 0b01  // RX- RSSI, TX - ----
+  // DIO4 - 0b01  // RX- RSSI, TX - ----
+  // DIO5 - 0b11  // RX- ModeReady, TX - ModeReady
+  rfmRegWrite( REG_DIO_MAP1, 0x11 );
+  rfmRegWrite( REG_DIO_MAP2, 0x77 );
+
+  // -------------- Bitrate ------------------------
+    rfmRegWrite( REG_BR_MSB, 0x05 );    // 25000 bit/s
+    rfmRegWrite( REG_BR_LSB, 0x00 );    //
+    // Настройка девиации частоты
+    rfmRegWrite( REG_FDEV_MSB, 0x01 );
+    rfmRegWrite( REG_FDEV_LSB, 0x3F );  // 19470 Hz
+    // Настройка BW-фильтра
+    rfmRegWrite( REG_RX_BW, 0x44 );     // 31300 Hz
+    // Настройка AFC Bw
+    rfmRegWrite( REG_AFC_BW, 0x8A );    // 100000 Hz
+
+    // rfmRegWrite( REG_AFCFEI, REG_AFCFEI_AFC_AUTO );
+
+    // Установка частоты несущей
+    rfmChannelSet( rfm.channel );
+    // Настройка усилителя приемника: Вх. = 200 Ом, Усиление - AGC
+    rfmRegWrite( REG_LNA, 0x80 );
+
+
+  // Настройка усилителя передатчика PA0 - выкл, PA1 - вкл.  Мощность - +10 дБм: (-18 + 28)
+  rfmRegWrite( REG_PA_LVL, 0x40 | (TX_PWR_10) );
+  // Настройка Sync-последовательности: Sync(NetID - вкл), 2 байта, (Net ID = 0x0101)
+  rfmRegWrite( REG_SYNC1, (uint8_t)(rfm.netId >> 8) );
+  rfmRegWrite( REG_SYNC2, (uint8_t)rfm.netId );
+  rfmRegWrite( REG_SYNC_CFG, 0x88 );
+
+  // Запись адреса нода - 0x22 и широковещательный адрес -0xFF
+  rfmRegWrite( REG_NODE_ADDR, rfm.nodeAddr );
+  rfmRegWrite( REG_BRDCAST, BRDCAST_ADDR );
+
+  // Настройка пакета: Длина пакета - переменная, CRC - вкл, фильтрация адресов: адресс нода + широковещательный
+  rfmRegWrite( REG_PACK_CFG, REG_PACK_CFG_VAR | REG_PACK_CFG_CRCON | REG_PACK_CFG_ADDRBRD);
+
+  // Настройка минимальной рабочей границы  RSSI ( -114дБ )
   // rfmRegWrite( REG_RSSI_THRESH, 0xE4 );
-  // Настройка минимальной рабочей границы  RSSI ( -108дБ )
-  rfmRegWrite( REG_RSSI_THRESH, 0xD8 );
+  // Настройка минимальной рабочей границы  RSSI ( -96дБ )
+  rfmRegWrite( REG_RSSI_THRESH, 0xC0 );
+
+  // Передача начинается сразу по условию: В FIFO есть данные и установлен TX-режим
+  rfmRegWrite( REG_FIFO_THRESH, 0x8F );
+  // Настройка DAGC
+  rfmRegWrite( REG_TEST_DAGC, 0x30 );
+}
+SSI_THRESH, 0xE4 );
+  // Настройка минимальной рабочей границы  RSSI ( -96дБ )
+  rfmRegWrite( REG_RSSI_THRESH, 0xC0 );
 
   // Передача начинается сразу по условию: В FIFO есть данные и установлен TX-режим
   rfmRegWrite( REG_FIFO_THRESH, 0x8F );

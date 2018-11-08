@@ -6,7 +6,7 @@
 #include "rfm69.h"
 #include "button.h"
 #include "ir.h"
-#include "proto.h"
+#include "ir_proto.h"
 #include "stm32l0xx_it.h"
 
 uint32_t cnt5mks = 0;
@@ -158,31 +158,9 @@ void EXTI0_1_IRQHandler(void)
     driveData.rssi = rfmRegRead( REG_RSSI_VAL );
     rfmReceive( &rxPkt );
     rfmRecvStop();
-    if( rxPkt.payDriveType == DRIV_TYPE_IRCTL){
-      enum eAcErr acErr;
-
+    if( rxPkt.payDriveType == DRIV_TYPE_IRCTL ){
       driveData.cmdNum = rxPkt.payLoad.cmdMsg.cmdNum;
-      if( connectFlag == FALSE ){
-
-    	// Устанавливаем будильник на ежесекундное просыпание
-    	  cleanAlrmSecMask();
-        // Маскируем секунды в будильнике A (TX)
-//        secToutTx = 360;
-        secToutRx = 5;
-        connectFlag = TRUE;
-      }
-      else {
-        // Принята команда - Кодируем и отправляем команду на ИК
-        wutSet( 50000 );
-				rxAcState = rxPkt.payAcCmd;
-        if( (acErr = protoPktCod()) == AC_ERR_OK ){
-          acErr = irPktSend();
-        }
-        acState.err = acErr;
-      }
-      // Обновляем состояние устройства
-      mesure();
-      state = STAT_RF_RX_OK;
+      query = cmdProcess( rxPkt.payCmd, rxPkt.payLoad.cmdMsg.cmdData);
     }
 
   }

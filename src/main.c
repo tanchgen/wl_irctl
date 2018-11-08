@@ -21,7 +21,7 @@
 #include "process.h"
 #include "button.h"
 #include "ir.h"
-#include "proto.h"
+#include "ir_proto.h"
 #include "main.h"
 
 //volatile uint32_t mTick;
@@ -135,6 +135,38 @@ int main(int argc, char* argv[])
 
   rfmInit();
   batInit();
+
+  // XXX: ---------- Автоматическая настройка сетевой конфигурации -------------
+    // Первый запуск измерений
+    mesure();
+    // Начальная настройка RTC
+    rtcStartInit();
+    flags.netCfg = acfgRestoreNet();
+    rfmInit();
+    pwrStartInit();
+
+  #if DEBUG_PIN
+    GPIOA->ODR ^= GPIO_Pin_11;
+  #endif
+  //
+  //  // ---- Формируем пакет данных -----
+  //  pkt.payCmd = CMD_SENS_SEND;
+  //  pkt.paySensType = SENS_TYPE_TO;
+  //  pkt.paySrcNode = rfm.nodeAddr;
+  //  pkt.payMsgNum = 1;
+  //  pkt.payBat = sensData.bat;
+  //  pkt.payData = sensData.volume;
+  //
+  //  // Передаем заполненую при измерении запись
+  //  pkt.nodeAddr = BCRT_ADDR;
+  //  // Длина payload = 1(nodeAddr) + 1(msgNum) + 1(bat) + 2(temp)
+  //  pkt.payLen = sizeof(tSensMsg);
+  //
+  //  rfmTransmit_s( &pkt );
+
+    rfCfg();
+
+  // ---------- Конец автоматической настройки сетевой конфигурации ------------
 
   // В рабочем режиме включаем будильник
   timeInit();

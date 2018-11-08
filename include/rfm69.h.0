@@ -10,9 +10,7 @@
 
 #include "gpio.h"
 #include "my_time.h"
-#include "rf_proto.h"
-#include "node_addr.h"
-#include "main.h"
+#include "proto.h"
 
 // Определения для входов DIO_RFM
 #ifndef __packed
@@ -32,8 +30,8 @@
 #define DIO1_PIN_NUM    1
 #define DIO1_PORT       GPIOA
 
-#define DIO2_PIN        GPIO_Pin_2
-#define DIO2_PIN_NUM    2
+#define DIO2_PIN        GPIO_Pin_8
+#define DIO2_PIN_NUM    8
 #define DIO2_PORT       GPIOA
 
 #define DIO3_PIN        GPIO_Pin_3
@@ -42,23 +40,18 @@
 #define DIO3_PORT_NUM   0
 #define DIO3_EXTI_IRQn  EXTI2_3_IRQn
 
-#define DIO4_PIN        GPIO_Pin_6
-#define DIO4_PIN_NUM    6
-#define DIO4_PORT       GPIOA
+#define DIO4_PIN        GPIO_Pin_4
+#define DIO4_PIN_NUM    4
+#define DIO4_PORT       GPIOB
 
-#define DIO5_PIN        GPIO_Pin_2
-#define DIO5_PIN_NUM    2
+#define DIO5_PIN        GPIO_Pin_5
+#define DIO5_PIN_NUM    5
 #define DIO5_PORT       GPIOB
 
 // Определения для вывода Reset модуля
-#define RFM_RST_PIN      GPIO_Pin_8
-#define RFM_RST_PIN_NUM  8
+#define RFM_RST_PIN      GPIO_Pin_3
+#define RFM_RST_PIN_NUM  3
 #define RFM_RST_PORT     GPIOB
-
-#define RSSI_PIN         DIO3_PIN
-#define RSSI_PIN_NUM     DIO3_PIN_NUM
-#define RSSI_PORT_NUM    DIO3_PORT_NUM
-#define RSSI_EXTI_IRQn   EXTI2_3_IRQn
 
 // Выводы по назначению
 #define DIO_PAYL_RDY      DIO0
@@ -110,6 +103,11 @@
 #define REG_FRF_LSB     (uint8_t)0x09    // Младший байт величины несущей частоты
 
 #define REG_RCCAL       (uint8_t)0x0A    // Управление салибровкой RC-генератора
+
+#define REG_LISTEN1     (uint8_t)0x0D    // Управление режимом LISTEN
+#define REG_LISTEN2     (uint8_t)0x0E    // Длительность фазы Idle режима LISTEN
+#define REG_LISTEN3     (uint8_t)0x0F    // Длительность фазы RX режима LISTEN
+
 #define REG_PA_LVL      (uint8_t)0x11    // Настройка усилителя передатчика
 #define REG_LNA         (uint8_t)0x18    // Настройки LNA
 #define REG_RX_BW       (uint8_t)0x19    // BW контроль
@@ -151,13 +149,19 @@
 // RegOpMode
 #define REG_OPMODE_SEQOFF     (uint8_t)0x80    // Автоматический секвенсор (1- выкл, 0 - вкл)
 #define REG_OPMODE_LISTEN_ON  (uint8_t)0x40    // Режим прослушивания (1 - вкл, 0 - выкл)
-#define REG_OPMODE_LISTEN_ABR (uint8_t)0x20    // Прерывание режима прослушивания ( запись 1 - прервать )
+#define REG_OPMODE_LISTEN_ABRT (uint8_t)0x20    // Прерывание режима прослушивания ( запись 1 - прервать )
 #define REG_OPMODE_MODE       (uint8_t)0x1C    // Маска флагов режима работы
 #define REG_OPMODE_SLEEP      (uint8_t)0x00    // Sleep-mode
-#define REG_OPMODE_STDBY      (uint8_t)0x04    // Standby - режим
+#define REG_OPMODE_SNDBY      (uint8_t)0x04    // Standby - режим
 #define REG_OPMODE_FS         (uint8_t)0x08    // FS-режим
 #define REG_OPMODE_TX         (uint8_t)0x0C    // TX-режим
 #define REG_OPMODE_RX         (uint8_t)0x10    // RX-режим
+
+
+#define LISTEN_RESOL_IDLE_64    (0x01 << 6)      //Коэффициент 64мкс
+#define LISTEN_RESOL_RX_64      (0x01 << 4)      //Коэффициент 64мкс
+#define LISTEN_CRITERIA         (0x01 << 3)      //Условие срабатывания RSSIThresh + SyncAddress
+#define LISTEN_END              (0x00 << 1)      // Режим остановки
 
 // RegAfcFei
 #define REG_AFCFEI_FEI_DONE     (uint8_t)0x40    // FEI посчитан
@@ -225,17 +229,26 @@
 #define CHANN8_3_FREQ     (0x6c5b45L)   // (433425000 / Fstep) Начальная частота "третьего" канала 433Мгц
 #define CHANN8_MAX            7
 
-#define CHANN_MAX     CHANN8_MAX
 
-enum {
-  WORK_NETCFG,      // Рабочие параметры сетевой конфигурации
-  FACT_NETCFG,      // Заводские параметры сетевой конфигурации
-};
+
+#define NET_ID            0x0105          // Идентификатор сети
+//#define CHANN_DEF         ((NET_ID % 8)+1)   // RF-канал по умолчанию
+#define CHANN_DEF         0x02   // RF-канал по умолчанию
+#define NODE_ADDR         0x1F            // (113) Собственный адрес нода по умолчанию
+#define BCRT_ADDR         0x00            // Адрес БКРТ-255
+#define BRDCAST_ADDR      0xFF            // Широковещательный адрес
+
+
+// Маски типов сообщений
+#define MSG_TYPE_BEACON   0      // "Маяковое" сообщение
+#define MSG_TYPE_DATA     1      // Сообщение "Данные"
+#define MSG_TYPE_RESPONSE 2      // Сообщение отклик
+#define MSG_TYPE_RESERVE  3      // Резервный тип сообщения
 
 // Режим работы модуля
-enum {
+enum eRfmMode{
   MODE_SLEEP,
-  MODE_STDBY,
+  MODE_SNDBY,
   MODE_FS,
   MODE_TX,
   MODE_RX,
@@ -248,23 +261,64 @@ enum {
   FEI_SET,
 };
 
-typedef struct __packed {
-  uint16_t netId;
+typedef struct {
   uint8_t channel;
+  enum eRfmMode mode;
+  uint16_t netId;
   uint8_t nodeAddr;     // Адрес нода распологается в EEPROM
   uint8_t txPwr;
-  uint8_t mode;
 } tRfm;
 
+typedef struct {
+  uint8_t cmd;
+  tUxTime time;
+  uint8_t ms;
+} __packed tTimeMsg;
 
 typedef struct {
-  uint8_t nodeAddr;       // Адрес получателя пакета
+  uint8_t srcNode;    // Адрес отправителя
+  struct {
+    uint8_t sensType: 6;   // Тип конечного устройства
+    uint8_t msgType: 2;   // Тип сообщения
+  };
+  uint8_t msgNum;     // Номер пакета
+  uint8_t batVolt;    // Напряжение батареи питания
+  uint16_t Volume;    // Значение сенсора
+} __packed tSensMsg;
+
+typedef struct {
+  uint8_t srcNode;    // Адрес отправителя
+  struct {
+    uint8_t drvType: 6;   // Тип конечного устройства
+    uint8_t msgType: 2;   // Тип сообщения
+  };
+  uint8_t msgNum;     // Номер пакета
+  uint8_t batVolt;    // Напряжение батареи питания
+  tAcData acState;    // Состояние устройства
+  uint8_t cmdNum;     // Номер последнего принятогосообщения
+} __packed tDriveMsg;
+
+typedef struct {
+  uint8_t srcNode;    // Адрес, от кого получена команда
+  uint8_t driveType;  // Тип конечного устройства - для проверки, что команда соответствует получателю
+  uint8_t cmdNum;     // Номер полученой команды
+  tAcData acCmd;    // Состояние устройства
+} __packed tCmdMsg;
+
+typedef union {
+  uint8_t u8[64];
+  tCmdMsg cmdMsg;
+  tTimeMsg timeMsg;
+  tSensMsg sensMsg;
+  tDriveMsg driveMsg;
+} __packed uPayload;
+
+typedef struct {
+  uint8_t nodeAddr;     // Адрес получателя пакета
   uint8_t payLen;         // Длина пакета (payload)
-  uPayload payLoad;       // Буфер получаемых от RFM69 данных
+  uPayload payLoad;                 // Буфер получаемых от RFM69 данных
 #define payBuf       payLoad.u8
-#define payCmd       payLoad.cmdMsg.cmd
 #define payAcCmd     payLoad.cmdMsg.acCmd
-#define payQuery     payLoad.queryMsg.query
 #define payUtime     payLoad.timeMsg.time
 #define payMs        payLoad.timeMsg.ms
 #define paySrcNode   payLoad.driveMsg.srcNode
@@ -272,9 +326,6 @@ typedef struct {
 #define payBat       payLoad.driveMsg.batVolt
 #define payMsgType   payLoad.driveMsg.msgType
 #define payDriveType payLoad.driveMsg.drvType
-#define payData       payLoad.sensMsg.data
-#define payDataType   payLoad.sensMsg.dataType
-#define payDevTemp    payLoad.sensMsg.devTemp
 #define payState     payLoad.driveMsg.acState
 #define payCmdNum    payLoad.driveMsg.cmdNum
 
@@ -282,9 +333,8 @@ typedef struct {
 } __packed tPkt;
 
 extern tPkt pkt;
+
 extern tRfm  rfm;
-extern tRfm  eerfm;
-extern uint8_t rfmReg[];
 
 uint8_t rfmRegRead( uint8_t add_r );
 void rfmRegWrite( uint8_t addr, uint8_t data );
@@ -306,31 +356,8 @@ uint16_t channelSearch( uint16_t count );
 void rfmChannelSet( uint16_t channel );
 void rfmFeiStart( void );
 void rfmFeiSet( void );
-void rfmNetSetup( void );
 
-// Установка параметров сетевой конфигурации
-inline void rfmNetCfg( uint8_t ncfg ){
-  if(ncfg == WORK_NETCFG){
-    rfm.netId = eerfm.netId;
-    rfm.nodeAddr = eerfm.nodeAddr;
-    rfm.channel = eerfm.channel;
-    rfm.txPwr = eerfm.txPwr;
-  }
-  else {
-    rfm.netId = NET_ID;
-    rfm.channel = CHANN_DEF;
-    rfm.nodeAddr = NODE_ADDR;
-    rfm.txPwr = TX_PWR_10;
-  }
-  flags.netCfg = ncfg;
-}
-
-//Сохранение параметров сетевой конфигурации в EEPROM
-inline void rfmSaveCfg( void ){
-  eeBackup.rfmNetId = rfm.netId;
-  eeBackup.rfmNodeAddr = rfm.nodeAddr;
-  eeBackup.rfmChannel = rfm.channel ;
-  eeBackup.rfmTxPwr = rfm.txPwr;
-}
+void rfmListenStart( void );
+void rfmListenStop( void );
 
 #endif /* RFM69_H_ */

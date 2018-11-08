@@ -13,7 +13,9 @@
 #include "bat.h"
 #include "rfm69.h"
 #include "button.h"
-#include "proto.h"
+#include "ir_proto.h"
+#include "ir.h"
+#include "autocfg.h"
 #include "process.h"
 
 
@@ -68,7 +70,6 @@ void wutIrqHandler( void ){
       state = STAT_READY;
       break;
     case STAT_RF_RX_OK:
-      pkt.payMsgType = MSG_TYPE_RESPONSE;
       csmaRun();
       break;
     case STAT_RF_CSMA_START:
@@ -81,9 +82,6 @@ void wutIrqHandler( void ){
     	dbgTime.rfmRxEnd = mTick;
     #endif // DEBUG_TIME
 
-    	rfmSetMode_s( REG_OPMODE_SLEEP );
-      // Отправить сообщение
-//      correctAlrm( ALRM_A );
       state = STAT_TX_START;
       sensDataSend();
       break;
@@ -195,8 +193,6 @@ void sensDataSend( void ){
 void txEnd( void ){
   // Обнулили индекс тестового массива WUT
 //  wutCount = 0;
-  flags.sensCplt = FALSE;
-  flags.batCplt = FALSE;
   state = STAT_READY;
 }
 
@@ -220,4 +216,99 @@ void listenStart( void ){
   // Таймаут - 20мс
   wutSet(20000);
   state = STAT_LISTEN_START;
+}
+
+
+eQuery cmdProcess( uint8_t cmd, uint8_t * cmdData ){
+  eQuery rc = QUERY_ERR_OK;
+  static tRfm tmprfm;
+
+  switch(cmd){
+    case CMD_CONN_RESP:          // Отклик на запрос установки связи
+      // Связь установлена - переходим в обычный режим работы
+      connOk();
+      break;
+    case CMD_RFCFG:{              // Сетевая конфигурация
+      uint8_t tmpch;
+      uint16_t tmpnid;
+      uint8_t tmpaddr;
+      uint8_t tmppwr;
+      if(
+          ((tmpch = ((tRfm *)cmdData)->channel) > CHANN_MAX ) ||
+          (((tmpnid = ((tRfm *)cmdData)->netId) == 0 ) || (tmpnid == NET_ID) )  ||
+          ( ((tmpaddr = ((tRfm *)cmdData)->nodeAddr) == 0 ) || (tmpaddr == 0xFF) ) ||
+          ((tmppwr = ((tRfm *)cmdData)->txPwr) > 28)
+        ) {
+        rc = QUERY_ERR_PARAM;
+      }
+      else {
+        tmprfm.netId = tmpnid;
+        tmprfm.txPwr = tmppwr;
+        tmprfm.channel = tmpch;
+        tmprfm.nodeAddr = tmpaddr;
+        rc = QUERY_RFCFG_RESP;
+      }
+      // Будем отправлять отклик через 50мс
+      wutSet( 50000 );
+      state = STAT_RF_RX_OK;
+      // Будем отправлять отклик
+      pkt.payMsgType = MSG_TYPE_QUERY;
+      break;
+    }
+    case CMD_RFCFG_RESP_OK:      // Подтверждение получения подтверждения получения Сетевой конфигурации (2-е рукопожатие)
+      // Сохраняем полученную ранее конфигурацию
+      rfm.netId = tmprfm.netId;
+      rfm.txPwr = tmprfm.txPwr;
+      rfm.channel = tmprfm.channel;
+      rfm.nodeAddr = tmprfm.nodeAddr;
+      eerfm = rfm;
+      rfmSaveCfg();
+      rfmNetCfg( WORK_NETCFG );
+      rfmNetSetup();
+      // Возвращаемся к попытке установки соединения с рабочей конфигурацией
+      rcfgTout = uxTime + RCFG_TOUT;
+      flags.netCfg = WORK_NETCFG;
+      rc = QUERY_CONNECT;
+      // Будем отправлять отклик
+      pkt.payMsgType = MSG_TYPE_QUERY;
+      break;
+    case CMD_MESUR_TOUT:         // Интервал измерения, секунд
+    case CMD_ACCUR:              // Точность представления данных
+      rc = QUERY_ERR_EXEC;
+      // Будем отправлять отклик через 50мс
+      wutSet( 50000 );
+      state = STAT_RF_RX_OK;
+      // Будем отправлять отклик
+      pkt.payMsgType = MSG_TYPE_QUERY;
+      break;
+    case CMD_AC_PARAM:{
+
+      enum eAcErr acErr;
+
+      // Принята команда - Кодируем и отправляем команду на ИК
+      wutSet( 50000 );
+      state = STAT_RF_RX_OK;
+      rxAcState = *((tAcData *)cmdData);
+      if( (acErr = protoPktCod()) == AC_ERR_OK ){
+        acErr = irPktSend();
+      }
+      acState.err = acErr;
+      // НЕ меряем напряжение питания - это делается итак каждые 6 минут
+//      mesure();
+
+      // Будем отправлять отклик
+      pkt.payMsgType = MSG_TYPE_RESPONSE;
+      break;
+    }
+    default:
+      rc = QUERY_ERR_CMD;
+      // Будем отправлять отклик через 50мс
+      wutSet( 50000 );
+      state = STAT_RF_RX_OK;
+      // Будем отправлять отклик
+      pkt.payMsgType = MSG_TYPE_QUERY;
+      break;
+  }
+
+  return rc;
 }

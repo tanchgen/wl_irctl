@@ -9,7 +9,7 @@
 #include "stm32l0xx.h"
 #include "main.h"
 #include "process.h"
-#include "proto.h"
+#include "ir_proto.h"
 #include "bat.h"
 
 // Batary volt sensor init function
@@ -81,6 +81,5 @@ void batEnd( void ){
   // Стираем флаги
   ADC1->ISR |= 0xFF; //ADC_ISR_EOS | ADC_ISR_EOC | ADC_ISR_EOSMP;
 	RCC->APB2ENR &= ~RCC_APB2ENR_ADCEN;
-	flags.batCplt = TRUE;
 	    // Не пара ли передавать данные серверу?
 }

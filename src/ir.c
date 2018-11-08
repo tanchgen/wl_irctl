@@ -11,7 +11,7 @@
 #include "my_time.h"
 #include "gpio.h"
 #include "button.h"
-#include "proto.h"
+#include "ir_proto.h"
 #include "ir.h"
 
 // Массив НАЧАЛЬНОГО пакета неизвестного протокола
